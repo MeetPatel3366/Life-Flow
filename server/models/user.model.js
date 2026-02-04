@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      trim: TransformStreamDefaultController,
+      trim: true,
     },
     email: {
       type: String,
@@ -36,14 +36,23 @@ const userSchema = new mongoose.Schema(
     bloodGroup: {
       type: String,
       enum: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+      required: function () {
+        return this.role === "donor" || this.role === "patient";
+      },
     },
     age: {
       type: Number,
       min: 18,
       max: 65,
+      required: function () {
+        return this.role === "donor";
+      },
     },
     weight: {
       type: Number,
+      required: function () {
+        return this.role === "donor";
+      },
       min: 50,
     },
     gender: {
@@ -58,6 +67,9 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["Eligible", "Temporarily Not Eligible", "Deferred"],
       default: "Eligible",
+      required: function () {
+        return this.role === "donor";
+      },
     },
     lastDonationDate: {
       type: Date,

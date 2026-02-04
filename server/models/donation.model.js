@@ -60,23 +60,26 @@ const donationSchema = new mongoose.Schema(
     labTests: {
       hiv: {
         type: Boolean,
-        default: true,
+        default: null,
+        //null : test not done yet,
+        //true : test done , infection not found (Safe),
+        //false : test done , infection found (Unsafe)
       },
       hepatitisB: {
         type: Boolean,
-        default: true,
+        default: null,
       },
       hepatitisC: {
         type: Boolean,
-        default: true,
+        default: null,
       },
       malaria: {
         type: Boolean,
-        default: true,
+        default: null,
       },
       syphilis: {
         type: Boolean,
-        default: true,
+        default: null,
       },
       testedAt: {
         type: Date,
