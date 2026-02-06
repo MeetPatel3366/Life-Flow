@@ -1,10 +1,8 @@
-import { ApiError } from "../utils/ApiError";
+import { ApiError } from "../utils/ApiError.js";
 
 export const notFound = (req, res, next) => {
   next(new ApiError(404, `Not Found - ${req.originalUrl}`));
 };
-
-import { ApiError } from "../utils/ApiError.js";
 
 export const errorMiddleware = (err, req, res, next) => {
   let error = err;

@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
 import { config } from "dotenv";
-import { errorMiddleware, notFound } from "./middlewares/error.middleware";
+import { errorMiddleware, notFound } from "./middlewares/error.middleware.js";
+import userRoutes from "./routes/user.routes.js";
 
 config();
 
@@ -15,6 +16,8 @@ app.use(
     credentials: true,
   }),
 );
+
+app.use("/api/v1/user", userRoutes);
 
 app.use(notFound);
 

@@ -16,6 +16,7 @@ const registerSchema = z
         "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
       )
       .optional(),
+    confirmpassword: z.string().optional(),
     phone: z
       .string()
       .regex(/^[0-9]{10}$/, "Phone must be 10 digits")
@@ -32,7 +33,7 @@ const registerSchema = z
       .max(65, "Maximum age is 65")
       .optional(),
     weight: z.number().min(50, "Minimum weight must be 50kg").optional(),
-    gender: z.enum(["Male", "Female", "Other"]).optional(),
+    gender: z.enum(["Male", "Female", "Other"]),
     medicalHistory: z.string().max(500).optional(),
   })
   .superRefine((data, ctx) => {
