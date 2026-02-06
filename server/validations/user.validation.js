@@ -67,4 +67,13 @@ const registerSchema = z
     }
   });
 
-export { registerSchema };
+const verifyOtpSchema = z.object({
+  email: z.email("Invalid email address"),
+  otp: z
+    .string()
+    .trim()
+    .length(6, "OTP must be exactly 6 digits")
+    .regex(/^\d{6}$/, "OTP must contain only numbers"),
+});
+
+export { registerSchema, verifyOtpSchema };
