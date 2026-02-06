@@ -76,4 +76,8 @@ const verifyOtpSchema = z.object({
     .regex(/^\d{6}$/, "OTP must contain only numbers"),
 });
 
-export { registerSchema, verifyOtpSchema };
+const resendOtpSchema = z.object({
+  email: z.email("Invalid email address"),
+});
+
+export { registerSchema, verifyOtpSchema, resendOtpSchema };
