@@ -62,7 +62,6 @@ const hospitalSchema = new mongoose.Schema(
       },
       coordinates: {
         type: [Number],
-        default: [0, 0],
       },
     },
     verificationStatus: {
@@ -92,16 +91,22 @@ const hospitalSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    documents: {
+    document: {
       name: {
         type: String,
         trim: true,
       },
       fileUrl: {
-        type: String,
+        public_id: {
+          type: String,
+        },
+        secure_url: {
+          type: String,
+        },
       },
       uploadedAt: {
         type: Date,
+        default: Date.now,
       },
     },
   },

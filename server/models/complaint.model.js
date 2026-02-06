@@ -33,16 +33,20 @@ const complaintSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    attachments: [
-      {
-        fileUrl: {
+    attachment: {
+      fileUrl: {
+        public_id: {
           type: String,
         },
-        uploadedAt: {
-          type: Date,
+        secure_url: {
+          type: String,
         },
       },
-    ],
+      uploadedAt: {
+        type: Date,
+        default: Date.now,
+      },
+    },
     status: {
       type: String,
       enum: [
