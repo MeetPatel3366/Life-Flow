@@ -89,3 +89,41 @@ export const register = asyncHandler(async (req, res) => {
     }),
   );
 });
+
+export const verifyOtp = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body;
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (user.isVerified) {
+    throw new ApiError(400, "Email already verified");
+  }
+
+  if (!user.otp || !user.otpExpiry) {
+    throw new ApiError(400, "OTP not found. Please request a new one.");
+  }
+
+  if (user.otp != otp) {
+    throw new ApiError(400, "Invalid OTP");
+  }
+
+  if (user.otpExpiry < Date.now()) {
+    throw new ApiError(400, "OTP has expired");
+  }
+
+  user.isVerified = true;
+  user.otp = undefined;
+  user.otpExpiry = undefined;
+
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, "Email verified successfully. You can now login"),
+    );
+});
