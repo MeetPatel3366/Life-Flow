@@ -4,6 +4,26 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import jwt from "jsonwebtoken";
+
+const generateAccessAndRefreshTokens = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "Something went wrong while generating referesh and access token",
+    );
+  }
+};
 
 export const register = asyncHandler(async (req, res) => {
   const {
@@ -179,4 +199,60 @@ export const resendOtp = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, "New OTP send to your email"));
+});
+
+export const login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new ApiError(401, "Invalid email or password");
+  }
+
+  if (!user?.isVerified) {
+    throw new ApiError(403, "Please verify your email before logging in");
+  }
+
+  if (!user.isActive) {
+    throw new ApiError(403, "Your account has been deactivated");
+  }
+
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid email or password");
+  }
+
+  const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+    user._id,
+  );
+
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken",
+  );
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, {
+      cookieOptions,
+      maxAge: 15 * 60 * 1000,
+    })
+    .cookie("refreshToken", refreshToken, {
+      cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    })
+    .json(
+      new ApiResponse(200, "user logged in successfully", {
+        user: loggedInUser,
+        accessToken,
+        refreshToken,
+      }),
+    );
 });

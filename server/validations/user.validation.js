@@ -91,4 +91,4 @@ const loginSchema = z.object({
     ),
 });
 
-export { registerSchema, verifyOtpSchema, resendOtpSchema };
+export { registerSchema, verifyOtpSchema, resendOtpSchema, loginSchema };
