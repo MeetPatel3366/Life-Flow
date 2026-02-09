@@ -1,0 +1,42 @@
+import { ApiError } from "../utils/ApiError";
+import { asyncHandler } from "../utils/asyncHandler";
+import jwt from "jsonwebtoken";
+import User from "../models/user.model";
+
+export const verifyJWT = asyncHandler(async (req, res, next) => {
+  const token =
+    req.cookies?.accessToken ||
+    (req.headers.authorization?.startsWith("Bearer ")
+      ? req.headers.authorization.split(" ")[1]
+      : null);
+
+  if (!token) {
+    throw new ApiError(401, "Authentication required");
+  }
+
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+  } catch (error) {
+    throw new ApiError(401, "Invalid or expired access token");
+  }
+
+  const user = await User.findById(decodedToken?.id).select(
+    "-password -refreshToken",
+  );
+
+  if (!user) {
+    throw new ApiError(401, "Invalid Access Token");
+  }
+
+  if (!user.isActive) {
+    throw new ApiError(403, "Account is deactivated");
+  }
+
+  if (!user.isVerified) {
+    throw new ApiError(403, "Email not verified");
+  }
+
+  req.user = user;
+  next();
+});
