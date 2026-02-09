@@ -8,10 +8,12 @@ import {
 } from "../validations/user.validation.js";
 import {
   login,
+  logout,
   register,
   resendOtp,
   verifyOtp,
 } from "../controllers/user.controller.js";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
@@ -22,5 +24,7 @@ router.post("/verify-otp", validate({ body: verifyOtpSchema }), verifyOtp);
 router.post("/resend-otp", validate({ body: resendOtpSchema }), resendOtp);
 
 router.post("/login", validate({ body: loginSchema }), login);
+
+router.post("/logout", verifyJWT, logout);
 
 export default router;

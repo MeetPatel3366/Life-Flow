@@ -4,7 +4,6 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import jwt from "jsonwebtoken";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -255,4 +254,24 @@ export const login = asyncHandler(async (req, res) => {
         refreshToken,
       }),
     );
+});
+
+export const logout = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user?._id,
+    { $unset: { refreshToken: 1 } },
+    { new: true },
+  );
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  };
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", cookieOptions)
+    .clearCookie("refreshToken", cookieOptions)
+    .json(new ApiResponse(200, "User logged out successfully", {}));
 });
