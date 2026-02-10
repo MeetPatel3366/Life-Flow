@@ -4,6 +4,7 @@ import {
   loginSchema,
   registerSchema,
   resendOtpSchema,
+  updateProfileDetailsSchema,
   verifyOtpSchema,
 } from "../validations/user.validation.js";
 import {
@@ -13,6 +14,7 @@ import {
   refreshAccessToken,
   register,
   resendOtp,
+  updateProfileDetails,
   verifyOtp,
 } from "../controllers/user.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -32,5 +34,12 @@ router.post("/logout", verifyJWT, logout);
 router.post("/refresh-token", refreshAccessToken);
 
 router.get("/me", verifyJWT, getCurrentUser);
+
+router.patch(
+  "/profile",
+  verifyJWT,
+  validate({ body: updateProfileDetailsSchema }),
+  updateProfileDetails,
+);
 
 export default router;

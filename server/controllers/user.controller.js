@@ -337,3 +337,45 @@ export const getCurrentUser = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, "Current user fetched successfully", req.user));
 });
+
+export const updateProfileDetails = asyncHandler(async (req, res) => {
+  const updates = req.body;
+
+  const allowedFields = [
+    "name",
+    "phone",
+    "gender",
+    "medicalHistory",
+    "age",
+    "weight",
+  ];
+
+  const sanitizedUpdates = {};
+
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) {
+      sanitizedUpdates[field] = updates[field];
+    }
+  }
+
+  if (
+    (sanitizedUpdates.age || sanitizedUpdates.weight) &&
+    req.user.role !== "donor"
+  ) {
+    throw new ApiError(403, "Age and weight can be updated by donors");
+  }
+
+  if (Object.keys(sanitizedUpdates).length == 0) {
+    throw new ApiError(400, "No valid fields provided for update");
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: sanitizedUpdates },
+    { new: true, runValidators: true },
+  ).select("-password -refreshToken -otp -otpExpiry");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Profile updated successfully", user));
+});
