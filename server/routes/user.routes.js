@@ -1,6 +1,7 @@
 import express from "express";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
+  changePasswordSchema,
   loginSchema,
   registerSchema,
   resendOtpSchema,
@@ -8,6 +9,7 @@ import {
   verifyOtpSchema,
 } from "../validations/user.validation.js";
 import {
+  changeCurrentPassword,
   getCurrentUser,
   login,
   logout,
@@ -49,6 +51,13 @@ router.patch(
   verifyJWT,
   upload.single("profileImage"),
   updateProfileImage,
+);
+
+router.patch(
+  "/change-password",
+  verifyJWT,
+  validate({ body: changePasswordSchema }),
+  changeCurrentPassword,
 );
 
 export default router;
