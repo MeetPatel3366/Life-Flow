@@ -15,9 +15,11 @@ import {
   register,
   resendOtp,
   updateProfileDetails,
+  updateProfileImage,
   verifyOtp,
 } from "../controllers/user.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import upload from "../middlewares/multer.middleware.js";
 
 const router = express.Router();
 
@@ -40,6 +42,13 @@ router.patch(
   verifyJWT,
   validate({ body: updateProfileDetailsSchema }),
   updateProfileDetails,
+);
+
+router.patch(
+  "/profile-image",
+  verifyJWT,
+  upload.single("profileImage"),
+  updateProfileImage,
 );
 
 export default router;

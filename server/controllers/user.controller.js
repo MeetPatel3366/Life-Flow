@@ -5,6 +5,7 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import jwt from "jsonwebtoken";
+import handleFileUpload from "../utils/handleFileUpload.js";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -378,4 +379,36 @@ export const updateProfileDetails = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, "Profile updated successfully", user));
+});
+
+export const updateProfileImage = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, "Profile image is required");
+  }
+
+  const userId = req.user._id;
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const uploadedImage = await handleFileUpload(
+    req.file,
+    "lifeflow/profile-images",
+    user.profileImage?.public_id,
+  );
+
+  if (!uploadedImage) {
+    throw new ApiError(500, "Image upload failed");
+  }
+
+  user.profileImage = uploadedImage;
+  await user.save({ validateBeforeSave: false });
+
+  return res.status(200).json(
+    new ApiResponse(200, "Profile image updated successfully", {
+      profileImage: user.profileImage,
+    }),
+  );
 });
