@@ -9,6 +9,7 @@ import {
 import {
   login,
   logout,
+  refreshAccessToken,
   register,
   resendOtp,
   verifyOtp,
@@ -26,5 +27,7 @@ router.post("/resend-otp", validate({ body: resendOtpSchema }), resendOtp);
 router.post("/login", validate({ body: loginSchema }), login);
 
 router.post("/logout", verifyJWT, logout);
+
+router.post("/refresh-token", refreshAccessToken);
 
 export default router;
