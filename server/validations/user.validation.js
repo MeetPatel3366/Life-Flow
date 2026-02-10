@@ -91,4 +91,31 @@ const loginSchema = z.object({
     ),
 });
 
-export { registerSchema, verifyOtpSchema, resendOtpSchema, loginSchema };
+const updateProfileDetailsSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(3, "Name must be at least 3 characters")
+    .max(50)
+    .optional(),
+  phone: z
+    .string()
+    .regex(/^[0-9]{10}$/, "Phone must be 10 digits")
+    .optional(),
+  gender: z.enum(["Male", "Female", "Other"]).optional(),
+  medicalHistory: z.string().max(500).optional(),
+  age: z.coerce
+    .number()
+    .min(18, "Minimum age is 18")
+    .max(65, "Maximum age is 65")
+    .optional(),
+  weight: z.coerce.number().min(50, "Minimum weight must be 50kg").optional(),
+});
+
+export {
+  registerSchema,
+  verifyOtpSchema,
+  resendOtpSchema,
+  loginSchema,
+  updateProfileDetailsSchema,
+};
