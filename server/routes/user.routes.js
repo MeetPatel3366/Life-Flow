@@ -7,6 +7,7 @@ import {
   verifyOtpSchema,
 } from "../validations/user.validation.js";
 import {
+  getCurrentUser,
   login,
   logout,
   refreshAccessToken,
@@ -29,5 +30,7 @@ router.post("/login", validate({ body: loginSchema }), login);
 router.post("/logout", verifyJWT, logout);
 
 router.post("/refresh-token", refreshAccessToken);
+
+router.get("/me", verifyJWT, getCurrentUser);
 
 export default router;
