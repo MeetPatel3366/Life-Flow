@@ -21,18 +21,19 @@ const handleFileUpload = async (
       await cloudinary.uploader.destroy(oldPublicId);
     }
 
-    fs.unlinkSync(path.join(process.cwd(), "uploads", file.filename));
+    console.log("file : ", file);
+
+    if (fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
 
     return {
       public_id: result.public_id,
       secure_url: result.secure_url,
     };
   } catch (error) {
-    if (file?.filename) {
-      const localPath = path.join(process.cwd(), "uploads", file.filename);
-      if (fs.existsSync(localPath)) {
-        fs.unlinkSync(localPath);
-      }
+    if (file?.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
     }
     console.error("File upload error:", error);
     throw new Error("Image upload failed");
