@@ -112,10 +112,40 @@ const updateProfileDetailsSchema = z.object({
   weight: z.coerce.number().min(50, "Minimum weight must be 50kg").optional(),
 });
 
+const changePasswordSchema = z
+  .object({
+    oldPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+        "oldPassword must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+      ),
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+        "newPassword must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+      ),
+    confirmPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+        "confirmPassword must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+      ),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "New password and confirm password do not match",
+    path: ["confirmPassword"],
+  });
+
 export {
   registerSchema,
   verifyOtpSchema,
   resendOtpSchema,
   loginSchema,
   updateProfileDetailsSchema,
+  changePasswordSchema,
 };
