@@ -141,6 +141,10 @@ const changePasswordSchema = z
     path: ["confirmPassword"],
   });
 
+const forgotPasswordSchema = z.object({
+  email: z.email("Invalid email address"),
+});
+
 export {
   registerSchema,
   verifyOtpSchema,
@@ -148,4 +152,5 @@ export {
   loginSchema,
   updateProfileDetailsSchema,
   changePasswordSchema,
+  forgotPasswordSchema,
 };
