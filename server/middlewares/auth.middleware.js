@@ -21,6 +21,8 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     throw new ApiError(401, "Invalid or expired access token");
   }
 
+  console.log("decoded token : ", decodedToken);
+
   const user = await User.findById(decodedToken?.id).select(
     "-password -refreshToken",
   );
@@ -35,6 +37,17 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
 
   if (!user.isVerified) {
     throw new ApiError(403, "Email not verified");
+  }
+
+  if (user.passwordChangedAt) {
+    const passwordChangedTime = parseInt(
+      user.passwordChangedAt.getTime() / 1000,
+      10,
+    );
+
+    if (decodedToken.iat < passwordChangedTime) {
+      throw new ApiError(401, "Token expired. Please login again");
+    }
   }
 
   req.user = user;
