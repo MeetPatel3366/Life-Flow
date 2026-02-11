@@ -2,6 +2,7 @@ import express from "express";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
   changePasswordSchema,
+  forgotPasswordSchema,
   loginSchema,
   registerSchema,
   resendOtpSchema,
@@ -10,6 +11,7 @@ import {
 } from "../validations/user.validation.js";
 import {
   changeCurrentPassword,
+  forgotPassword,
   getCurrentUser,
   login,
   logout,
@@ -58,6 +60,12 @@ router.patch(
   verifyJWT,
   validate({ body: changePasswordSchema }),
   changeCurrentPassword,
+);
+
+router.post(
+  "/forgot-password",
+  validate({ body: forgotPasswordSchema }),
+  forgotPassword,
 );
 
 export default router;

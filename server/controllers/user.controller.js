@@ -444,3 +444,87 @@ export const changeCurrentPassword = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, "Password changed successfully"));
 });
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  console.log("email : ", email);
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          "If an account with this email exists, a password reset link has been sent",
+        ),
+      );
+  }
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  user.passwordResetToken = hashedToken;
+  user.passwordResetExpires = Date.now() + 15 * 60 * 1000;
+
+  await user.save({ validateBeforeSave: false });
+
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.MAILHOST,
+      port: parseInt(process.env.MAILPORT, 10),
+      secure: false,
+      auth: {
+        user: process.env.MAIL_USERNAME,
+        pass: process.env.MAIL_PASSWORD,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.MAIL_USERNAME,
+      to: user.email,
+      subject: "Life Flow - Password Reset Request",
+      html: `
+    <div>
+    <h2>Password Reset Request</h2>
+    <p>Hello,</p>
+    <p>We received a request to reset your password for your <strong>Life Flow</strong> account.</p>
+    <p>Please click the link below to set a new password. This link is valid for 15 minutes:</p>
+    <p>
+      <a href="${resetUrl}" target="_blank">
+        <strong>Reset Password</strong>
+      </a>
+    </p>    
+    <hr />
+    <p>If the link above doesn't work, copy and paste this URL into your browser:</p>
+    <p>${resetUrl}</p>
+    <p>Best regards,<br>The Life Flow Team</p>
+  </div>
+  `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          "If an account with this email exists, a password reset link has been sent",
+        ),
+      );
+  } catch (error) {
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    throw new ApiError(500, "Failed to send reset email");
+  }
+});
