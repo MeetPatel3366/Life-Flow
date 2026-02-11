@@ -41,6 +41,10 @@ export const register = asyncHandler(async (req, res) => {
     medicalHistory,
   } = req.body;
 
+  if (role === "admin") {
+    throw new ApiError(403, "You cannot register as admin");
+  }
+
   const existingUser = await User.findOne({ email });
   if (existingUser) {
     if (!existingUser.isVerified) {

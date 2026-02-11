@@ -21,7 +21,7 @@ const registerSchema = z
       .string()
       .regex(/^[0-9]{10}$/, "Phone must be 10 digits")
       .optional(),
-    role: z.enum(["donor", "patient"], {
+    role: z.enum(["donor", "patient", "hospital"], {
       error: "Invalid role selected",
     }),
     bloodGroup: z
