@@ -6,6 +6,7 @@ import {
   loginSchema,
   registerSchema,
   resendOtpSchema,
+  resetPasswordSchema,
   updateProfileDetailsSchema,
   verifyOtpSchema,
 } from "../validations/user.validation.js";
@@ -18,6 +19,7 @@ import {
   refreshAccessToken,
   register,
   resendOtp,
+  resetPassword,
   updateProfileDetails,
   updateProfileImage,
   verifyOtp,
@@ -66,6 +68,12 @@ router.post(
   "/forgot-password",
   validate({ body: forgotPasswordSchema }),
   forgotPassword,
+);
+
+router.patch(
+  "/reset-password/:token",
+  validate({ body: resetPasswordSchema }),
+  resetPassword,
 );
 
 export default router;

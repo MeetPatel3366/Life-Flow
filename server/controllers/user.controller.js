@@ -528,3 +528,43 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Failed to send reset email");
   }
 });
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  if (!token) {
+    throw new ApiError(400, "Reset token is required");
+  }
+
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  const user = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() },
+  }).select("+password");
+
+  if (!user) {
+    throw new ApiError(400, "Invalid or expired reset token");
+  }
+
+  const isSamePassword = await user.isPasswordCorrect(password);
+
+  if (isSamePassword) {
+    throw new ApiError(
+      400,
+      "New password must be different from the old password",
+    );
+  }
+
+  user.password = password;
+  user.passwordChangedAt = Date.now();
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+
+  await user.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse("Password reset successful. you can now login"));
+});

@@ -114,6 +114,9 @@ const userSchema = new mongoose.Schema(
     passwordResetExpires: {
       type: Date,
     },
+    passwordChangedAt: {
+      type: Date,
+    },
   },
   { timestamps: true },
 );
