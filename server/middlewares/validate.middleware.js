@@ -14,11 +14,16 @@ export const validate = (schema) => (req, res, next) => {
 
     next();
   } catch (error) {
+    const issues = error.issues || error.errors || [];
+
     return res.status(400).json({
-      errors: error.errors?.map((e) => ({
-        field: e.path.join("."),
-        message: e.message,
-      })) || [{ message: "Internal Validation Error" }],
+      errors:
+        Array.isArray(issues) && issues.length > 0
+          ? issues.map((e) => ({
+              field: Array.isArray(e.path) ? e.path.join(".") : "unknown",
+              message: e.message,
+            }))
+          : [{ message: "Internal Validation Error" }],
     });
   }
 };
