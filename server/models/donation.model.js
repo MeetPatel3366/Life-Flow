@@ -59,27 +59,29 @@ const donationSchema = new mongoose.Schema(
     },
     labTests: {
       hiv: {
-        type: Boolean,
-        default: null,
-        //null : test not done yet,
-        //true : test done , infection not found (Safe),
-        //false : test done , infection found (Unsafe)
+        type: String,
+        enum: ["Pending", "Negative", "Positive"],
+        default: "Pending",
       },
       hepatitisB: {
-        type: Boolean,
-        default: null,
+        type: String,
+        enum: ["Pending", "Negative", "Positive"],
+        default: "Pending",
       },
       hepatitisC: {
-        type: Boolean,
-        default: null,
+        type: String,
+        enum: ["Pending", "Negative", "Positive"],
+        default: "Pending",
       },
       malaria: {
-        type: Boolean,
-        default: null,
+        type: String,
+        enum: ["Pending", "Negative", "Positive"],
+        default: "Pending",
       },
       syphilis: {
-        type: Boolean,
-        default: null,
+        type: String,
+        enum: ["Pending", "Negative", "Positive"],
+        default: "Pending",
       },
       testedAt: {
         type: Date,
@@ -106,5 +108,8 @@ const donationSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+donationSchema.index({ hospital: 1, status: 1 });
+donationSchema.index({ donor: 1 });
 
 export default mongoose.model("Donation", donationSchema);
