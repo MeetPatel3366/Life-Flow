@@ -52,4 +52,20 @@ const hospitalRegistrationSchema = z.object({
   hasComponentSeparation: z.coerce.boolean().optional(),
 });
 
-export { hospitalRegistrationSchema };
+const pendingHospitalsQuerySchema = z.object({
+  page: z.coerce
+    .number()
+    .int()
+    .min(1, "Page must be at least 1")
+    .optional()
+    .default(1),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1, "Limit must be at least 1")
+    .max(50, "Limit cannot exceed 50")
+    .optional()
+    .default(10),
+});
+
+export { hospitalRegistrationSchema, pendingHospitalsQuerySchema };
