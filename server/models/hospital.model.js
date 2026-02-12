@@ -91,22 +91,12 @@ const hospitalSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    document: {
-      name: {
+    licenseDocument: {
+      public_id: {
         type: String,
-        trim: true,
       },
-      fileUrl: {
-        public_id: {
-          type: String,
-        },
-        secure_url: {
-          type: String,
-        },
-      },
-      uploadedAt: {
-        type: Date,
-        default: Date.now,
+      secure_url: {
+        type: String,
       },
     },
   },

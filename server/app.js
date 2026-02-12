@@ -4,6 +4,7 @@ import { config } from "dotenv";
 import cookieParser from "cookie-parser";
 import { errorMiddleware, notFound } from "./middlewares/error.middleware.js";
 import userRoutes from "./routes/user.routes.js";
+import hospitalRoutes from "./routes/hospital.routes.js";
 
 config();
 const app = express();
@@ -19,6 +20,7 @@ app.use(
 app.use(cookieParser());
 
 app.use("/api/v1/user", userRoutes);
+app.use("/api/v1/hospital", hospitalRoutes);
 
 app.use(notFound);
 
