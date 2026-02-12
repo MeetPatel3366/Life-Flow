@@ -1,3 +1,5 @@
+import fs from "fs";
+
 export const validate = (schema) => (req, res, next) => {
   try {
     if (schema.body) {
@@ -5,15 +7,16 @@ export const validate = (schema) => (req, res, next) => {
     }
 
     if (schema.params) {
-      req.params = schema.params.parse(req.params);
+      Object.assign(req.params, schema.params.parse(req.params));
     }
 
     if (schema.query) {
-      req.query = schema.query.parse(req.query);
+      Object.assign(req.query, schema.query.parse(req.query));
     }
 
     next();
   } catch (error) {
+    console.log("validation error: ", error);
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
