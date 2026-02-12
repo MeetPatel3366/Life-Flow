@@ -34,7 +34,7 @@ const hospitalRegistrationSchema = z.object({
   location: z.object({
     type: z.literal("Point"),
     coordinates: z
-      .array(z.number())
+      .array(z.coerce.number())
       .length(2, "Coordinates must contain [longitude, latitude]")
       .refine(
         (coords) =>
@@ -45,11 +45,11 @@ const hospitalRegistrationSchema = z.object({
         "Invalid longitude or latitude",
       ),
   }),
-  storageCapacity: z
+  storageCapacity: z.coerce
     .number()
     .min(0, "Storage capacity cannot be negative")
     .optional(),
-  hasComponentSeparation: z.boolean().optional(),
+  hasComponentSeparation: z.coerce.boolean().optional(),
 });
 
 export { hospitalRegistrationSchema };
