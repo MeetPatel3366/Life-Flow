@@ -1,4 +1,5 @@
 import { z } from "zod";
+import mongoose from "mongoose";
 
 const hospitalRegistrationSchema = z.object({
   name: z.string().trim().min(3, "Hospital name nust be at least 3 characters"),
@@ -68,4 +69,17 @@ const pendingHospitalsQuerySchema = z.object({
     .default(10),
 });
 
-export { hospitalRegistrationSchema, pendingHospitalsQuerySchema };
+const approveHospitalParamsSchema = z.object({
+  id: z
+    .string()
+    .refine(
+      (val) => mongoose.Types.ObjectId.isValid(val),
+      "Invalid hospital id",
+    ),
+});
+
+export {
+  hospitalRegistrationSchema,
+  pendingHospitalsQuerySchema,
+  approveHospitalParamsSchema,
+};
