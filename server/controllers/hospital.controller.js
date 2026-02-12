@@ -49,3 +49,44 @@ export const registerHospital = asyncHandler(async (req, res) => {
       ),
     );
 });
+
+export const getPendingHospitals = asyncHandler(async (req, res) => {
+  if (req.user.role !== "admin") {
+    throw new ApiError(403, "Only admin can access pending hospitals");
+  }
+
+  const { page, limit } = req.query;
+  const skip = (page - 1) * limit;
+
+  const filter = {
+    verificationStatus: "Pending",
+  };
+
+  const [hospitals, total] = await Promise.all([
+    Hospital.find(filter)
+      .select(
+        "name type licenseNumber phone address verificationStatus createdAt",
+      )
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Hospital.countDocuments(filter),
+  ]);
+
+  if (page > Math.ceil(total / limit) && total > 0) {
+    throw new ApiError(404, "This page does not exists");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      hospitals,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    }),
+  );
+});
