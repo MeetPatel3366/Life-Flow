@@ -14,6 +14,10 @@ export const validate = (schema) => (req, res, next) => {
 
     next();
   } catch (error) {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
     const issues = error.issues || error.errors || [];
 
     return res.status(400).json({
