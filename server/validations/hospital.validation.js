@@ -122,10 +122,19 @@ const getHospitalsSchema = z.object({
   }),
 });
 
+const getHospitalByIdSchema = z.object({
+  params: z.object({
+    id: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
+      message: "Invalid hospital id format",
+    }),
+  }),
+});
+
 export {
   hospitalRegistrationSchema,
   pendingHospitalsQuerySchema,
   approveHospitalParamsSchema,
   rejectHospitalSchema,
   getHospitalsSchema,
+  getHospitalByIdSchema,
 };
