@@ -90,3 +90,55 @@ export const getPendingHospitals = asyncHandler(async (req, res) => {
     }),
   );
 });
+
+export const approveHospital = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (req.user.role !== "admin") {
+    throw new ApiError(403, "Only admin can approve hospitals");
+  }
+
+  const hospital = await Hospital.findOneAndUpdate(
+    {
+      _id: id,
+      verificationStatus: { $ne: "Approved" },
+    },
+    {
+      $set: {
+        verificationStatus: "Approved",
+        isActive: true,
+        verifiedBy: req.user._id,
+        verifiedAt: new Date(),
+        rejectionReason: null,
+      },
+    },
+    { new: true, runValidators: true },
+  );
+
+  if (!hospital) {
+    const existing = await Hospital.findById(id);
+
+    if (!existing) {
+      throw new ApiError(404, "Hospital not found");
+    }
+
+    throw new ApiError(400, "Hospital is already approved");
+  }
+
+  await User.updateOne(
+    { hospitalId: hospital._id },
+    { $set: { isHospitalVerified: true } },
+  );
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        hospitalId: hospital._id,
+        verificationStatus: hospital.verificationStatus,
+        verifiedAt: hospital.verifiedAt,
+      },
+      "Hospital approved successfully",
+    ),
+  );
+});

@@ -117,6 +117,13 @@ const userSchema = new mongoose.Schema(
     passwordChangedAt: {
       type: Date,
     },
+    isHospitalVerified: {
+      type: Boolean,
+      default: false,
+      required: function () {
+        return this.role === "hospital";
+      },
+    },
   },
   { timestamps: true },
 );
