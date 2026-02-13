@@ -3,12 +3,14 @@ import { authorizeRoles, verifyJWT } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
   approveHospitalParamsSchema,
+  getHospitalsSchema,
   hospitalRegistrationSchema,
   pendingHospitalsQuerySchema,
   rejectHospitalSchema,
 } from "../validations/hospital.validation.js";
 import {
   approveHospital,
+  getHospitals,
   getPendingHospitals,
   registerHospital,
   rejectHospital,
@@ -51,6 +53,14 @@ router.patch(
     body: rejectHospitalSchema.shape.body,
   }),
   rejectHospital,
+);
+
+router.get(
+  "/",
+  verifyJWT,
+  authorizeRoles("admin"),
+  validate(getHospitalsSchema),
+  getHospitals,
 );
 
 export default router;

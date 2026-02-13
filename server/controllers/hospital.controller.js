@@ -86,6 +86,9 @@ export const getPendingHospitals = asyncHandler(async (req, res) => {
         page,
         limit,
         totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
       },
     }),
   );
@@ -195,6 +198,60 @@ export const rejectHospital = asyncHandler(async (req, res) => {
         rejectionReason: hospital.rejectionReason,
       },
       "Hospital rejected successfully",
+    ),
+  );
+});
+
+export const getHospitals = asyncHandler(async (req, res) => {
+  if (req.user.role !== "admin") {
+    throw new ApiError(403, "Only admin can access hospital list");
+  }
+
+  const { page, limit, status, search, sortBy, order } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const filter = {};
+
+  if (status) {
+    filter.verificationStatus = status;
+  }
+
+  if (search) {
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    filter.name = { $regex: escapedSearch, $options: "i" };
+  }
+
+  const sortOrder = order === "asc" ? 1 : -1;
+
+  const [hospitals, totalCount] = await Promise.all([
+    Hospital.find(filter)
+      .select("name phone verificationStatus isActive address createdAt")
+      .sort({ [sortBy]: sortOrder })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+
+    Hospital.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        hospitals,
+        pagination: {
+          totalCount,
+          totalPages,
+          currentPage: page,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+          limit,
+        },
+      },
+      "Hospitals fetched successfully",
     ),
   );
 });
