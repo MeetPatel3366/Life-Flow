@@ -97,9 +97,35 @@ const rejectHospitalSchema = z.object({
   }),
 });
 
+const getHospitalsSchema = z.object({
+  query: z.object({
+    page: z
+      .string()
+      .regex(/^\d+$/, "Page must be a number")
+      .transform(Number)
+      .default(1)
+      .optional(),
+    limit: z
+      .string()
+      .regex(/^\d+$/, "Limit must be a number")
+      .transform(Number)
+      .refine((val) => val <= 50, "Limit cannot exceed 50")
+      .default(10)
+      .optional(),
+    status: z.enum([["Pending", "Approved", "Rejected"]]).optional(),
+    search: z.string().trim().min(1).max(100).optional(),
+    sortBy: z
+      .enum([["createdAt", "updatedAt", "name"]])
+      .default("")
+      .optional(),
+    order: z.enum(["asc", "desc"]).default("desc").optional(),
+  }),
+});
+
 export {
   hospitalRegistrationSchema,
   pendingHospitalsQuerySchema,
   approveHospitalParamsSchema,
   rejectHospitalSchema,
+  getHospitalsSchema,
 };
