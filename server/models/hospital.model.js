@@ -76,6 +76,13 @@ const hospitalSchema = new mongoose.Schema(
     verifiedAt: {
       type: Date,
     },
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    rejectedAt: {
+      type: Date,
+    },
     rejectionReason: {
       type: String,
       trim: true,

@@ -142,3 +142,59 @@ export const approveHospital = asyncHandler(async (req, res) => {
     ),
   );
 });
+
+export const rejectHospital = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { rejectionReason } = req.body;
+
+  if (req.user.role !== "admin") {
+    throw new ApiError(403, "Only admin can approve hospitals");
+  }
+
+  const hospital = await Hospital.findOneAndUpdate(
+    {
+      _id: id,
+      verificationStatus: { $ne: "Rejected" },
+    },
+    {
+      $set: {
+        verificationStatus: "Rejected",
+        isActive: false,
+        rejectedBy: req.user._id,
+        rejectedAt: new Date(),
+        rejectionReason: rejectionReason,
+        verifiedBy: null,
+        verifiedAt: null,
+      },
+    },
+    { new: true, runValidators: true },
+  );
+
+  if (!hospital) {
+    const existing = await Hospital.findById(id);
+
+    if (!existing) {
+      throw new ApiError(404, "Hospital not found");
+    }
+
+    throw new ApiError(400, "Hospital is already rejected");
+  }
+
+  await User.updateOne(
+    { hospitalId: hospital._id },
+    { $set: { isHospitalVerified: false } },
+  );
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        hospitalId: hospital._id,
+        verificationStatus: hospital.verificationStatus,
+        rejectedAt: hospital.rejectedAt,
+        rejectionReason: hospital.rejectionReason,
+      },
+      "Hospital rejected successfully",
+    ),
+  );
+});

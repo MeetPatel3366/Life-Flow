@@ -78,8 +78,28 @@ const approveHospitalParamsSchema = z.object({
     ),
 });
 
+const rejectHospitalSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid hospital id",
+      ),
+  }),
+
+  body: z.object({
+    rejectionReason: z
+      .string()
+      .trim()
+      .min(10, "Rejection reason must be at least 10 characters")
+      .max(500, "Rejection reason cannot exceed 500 characters"),
+  }),
+});
+
 export {
   hospitalRegistrationSchema,
   pendingHospitalsQuerySchema,
   approveHospitalParamsSchema,
+  rejectHospitalSchema,
 };

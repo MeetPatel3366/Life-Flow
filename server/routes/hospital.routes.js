@@ -5,11 +5,13 @@ import {
   approveHospitalParamsSchema,
   hospitalRegistrationSchema,
   pendingHospitalsQuerySchema,
+  rejectHospitalSchema,
 } from "../validations/hospital.validation.js";
 import {
   approveHospital,
   getPendingHospitals,
   registerHospital,
+  rejectHospital,
 } from "../controllers/hospital.controller.js";
 import upload from "../middlewares/multer.middleware.js";
 
@@ -38,6 +40,17 @@ router.patch(
   authorizeRoles("admin"),
   validate({ params: approveHospitalParamsSchema }),
   approveHospital,
+);
+
+router.patch(
+  "/:id/reject",
+  verifyJWT,
+  authorizeRoles("admin"),
+  validate({
+    params: rejectHospitalSchema.shape.params,
+    body: rejectHospitalSchema.shape.body,
+  }),
+  rejectHospital,
 );
 
 export default router;
