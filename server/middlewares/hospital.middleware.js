@@ -13,9 +13,11 @@ export const requireApprovedHospital = asyncHandler(async (req, res, next) => {
     throw new ApiError(403, "Hospital profile not completed");
   }
 
-  if (hospital.verificationStatus !== "Approved" || !hospital.isActive) {
-    throw new ApiError(403, "Hospital not approved yet");
+  if (!req.user.isHospitalVerified) {
+    throw new ApiError(
+      403,
+      "Your hospital authorization is still pending admin approval.",
+    );
   }
-
   next();
 });
