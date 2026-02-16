@@ -5,6 +5,7 @@ import {
   approveHospitalParamsSchema,
   getHospitalByIdSchema,
   getHospitalsSchema,
+  getNearByHospitalSchema,
   hospitalRegistrationSchema,
   pendingHospitalsQuerySchema,
   rejectHospitalSchema,
@@ -15,6 +16,7 @@ import {
   getHospitalById,
   getHospitals,
   getMyHospitalProfile,
+  getNearbyHospitals,
   getPendingHospitals,
   registerHospital,
   rejectHospital,
@@ -34,6 +36,8 @@ router.patch(
   validate(updateMyHospitalSchema),
   updateMyHospitalProfile,
 );
+
+router.get("/nearby", validate(getNearByHospitalSchema), getNearbyHospitals);
 
 router.post(
   "/register",

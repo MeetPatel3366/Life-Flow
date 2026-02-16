@@ -399,3 +399,70 @@ export const updateMyHospitalProfile = asyncHandler(async (req, res) => {
 
   return res.status(200).json(new ApiResponse(200, result, message));
 });
+
+export const getNearbyHospitals = asyncHandler(async (req, res) => {
+  const { lat, lng, radius = 10, page = 1, limit = 10 } = req.query;
+
+  const skip = (page - 1) * limit;
+  const radiusInMeters = radius * 1000;
+
+  const result = await Hospital.aggregate([
+    {
+      $geoNear: {
+        near: {
+          type: "Point",
+          coordinates: [Number(lng), Number(lat)],
+        },
+        distanceField: "distance",
+        maxDistance: radiusInMeters,
+        spherical: true,
+        query: {
+          verificationStatus: "Approved",
+          isActive: true,
+        },
+      },
+    },
+    {
+      $facet: {
+        metadata: [{ $count: "total" }],
+
+        data: [
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              name: 1,
+              type: 1,
+              phone: 1,
+              address: 1,
+              location: 1,
+              distance: { $round: ["$distance", 0] },
+            },
+          },
+        ],
+      },
+    },
+  ]);
+
+  const hospitals = result[0].data;
+  const totalCount = result[0].metadata[0]?.total || 0;
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        hospitals,
+        pagination: {
+          totalResults: totalCount,
+          totalPages,
+          currentPage: page,
+          limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+      },
+      "Nearby hospitals fetched successfully",
+    ),
+  );
+});
