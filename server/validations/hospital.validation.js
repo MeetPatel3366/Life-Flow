@@ -204,6 +204,16 @@ const updateMyHospitalSchema = {
   }),
 };
 
+const getNearByHospitalSchema = {
+  query: z.object({
+    lat: z.coerce.number().min(-90).max(90),
+    lng: z.coerce.number().min(-180).max(180),
+    radius: z.coerce.number().positive().max(100).optional().default(10),
+    page: z.coerce.number().min(1).optional().default(1),
+    limit: z.coerce.number().min(1).max(50).optional().default(10),
+  }),
+};
+
 export {
   hospitalRegistrationSchema,
   pendingHospitalsQuerySchema,
@@ -212,4 +222,5 @@ export {
   getHospitalsSchema,
   getHospitalByIdSchema,
   updateMyHospitalSchema,
+  getNearByHospitalSchema,
 };
