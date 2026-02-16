@@ -289,3 +289,37 @@ export const getHospitalById = asyncHandler(async (req, res) => {
       ),
     );
 });
+
+export const getMyHospitalProfile = asyncHandler(async (req, res) => {
+  const hospitalId = req.user.hospitalId;
+
+  if (!hospitalId) {
+    throw new ApiError(400, "Hospital profile not linked to user");
+  }
+
+  const hospital = await Hospital.findById(hospitalId)
+    .select("-__v -verifiedBy -rejectedBy -updatedAt")
+    .lean();
+
+  if (!hospital) {
+    throw new ApiError(404, "Hospital profile not found");
+  }
+
+  const hospitalProfile = {
+    ...hospital,
+    isVerified: hospital.verificationStatus === "Approved",
+    isPending: hospital.verificationStatus === "Pending",
+    isRejected: hospital.verificationStatus === "Rejected",
+    canEdit: ["Pending", "Rejected"].includes(hospital.verificationStatus),
+  };
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        hospitalProfile,
+        "Hospital profile fetched successfully",
+      ),
+    );
+});

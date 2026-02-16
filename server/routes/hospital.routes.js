@@ -13,6 +13,7 @@ import {
   approveHospital,
   getHospitalById,
   getHospitals,
+  getMyHospitalProfile,
   getPendingHospitals,
   registerHospital,
   rejectHospital,
@@ -20,6 +21,8 @@ import {
 import upload from "../middlewares/multer.middleware.js";
 
 const router = express.Router();
+
+router.get("/me", verifyJWT, authorizeRoles("hospital"), getMyHospitalProfile);
 
 router.post(
   "/register",
