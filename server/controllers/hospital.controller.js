@@ -255,3 +255,37 @@ export const getHospitals = asyncHandler(async (req, res) => {
     ),
   );
 });
+
+export const getHospitalById = asyncHandler(async (req, res) => {
+  if (req.user.role !== "admin") {
+    throw new ApiError(403, "Only admin can access hospital details");
+  }
+
+  const { id } = req.params;
+
+  const hospital = await Hospital.findById(id)
+    .populate("verifiedBy", "name email role")
+    .populate("rejectedBy", "name email role")
+    .select("-__v")
+    .lean();
+
+  if (!hospital) {
+    throw new ApiError(404, "Hospital not found");
+  }
+
+  const processedHospital = {
+    ...hospital,
+    isVerified: hospital.verificationStatus === "Approved",
+    canBeEdited: hospital.verificationStatus !== "Approved",
+  };
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        processedHospital,
+        "Hospital details fetched successfully",
+      ),
+    );
+});

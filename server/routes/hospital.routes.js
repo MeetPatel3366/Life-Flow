@@ -3,6 +3,7 @@ import { authorizeRoles, verifyJWT } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
   approveHospitalParamsSchema,
+  getHospitalByIdSchema,
   getHospitalsSchema,
   hospitalRegistrationSchema,
   pendingHospitalsQuerySchema,
@@ -10,6 +11,7 @@ import {
 } from "../validations/hospital.validation.js";
 import {
   approveHospital,
+  getHospitalById,
   getHospitals,
   getPendingHospitals,
   registerHospital,
@@ -61,6 +63,14 @@ router.get(
   authorizeRoles("admin"),
   validate(getHospitalsSchema),
   getHospitals,
+);
+
+router.get(
+  "/:id",
+  verifyJWT,
+  authorizeRoles("admin"),
+  validate(getHospitalByIdSchema),
+  getHospitalById,
 );
 
 export default router;
