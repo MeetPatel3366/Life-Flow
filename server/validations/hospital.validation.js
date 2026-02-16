@@ -130,6 +130,80 @@ const getHospitalByIdSchema = z.object({
   }),
 });
 
+const updateMyHospitalSchema = {
+  body: z.object({
+    name: z
+      .string()
+      .trim()
+      .min(3, "Hospital name nust be at least 3 characters")
+      .optional(),
+    type: z.enum(["Hospital", "Blood Bank"]).optional(),
+    phone: z
+      .string()
+      .trim()
+      .regex(/^[0-9]{10}$/, "Phone must be 10 digits")
+      .optional(),
+    address: z
+      .object({
+        street: z.string().trim().min(3).optional(),
+        city: z
+          .string()
+          .trim()
+          .min(2, "City must be at least 2 characters")
+          .optional(),
+        state: z
+          .string()
+          .trim()
+          .min(2, "State must be at least 2 characters")
+          .optional(),
+        pincode: z
+          .string()
+          .trim()
+          .regex(/^\d{6}$/, "Invalid pincode")
+          .optional(),
+        country: z.string().trim().optional(),
+      })
+      .partial()
+      .optional(),
+    contactPerson: z
+      .object({
+        name: z
+          .string()
+          .trim()
+          .min(3, "Contact person name must be at least 3 characters")
+          .optional(),
+        designation: z
+          .string()
+          .trim()
+          .min(2, "Designation at least 2 characters")
+          .optional(),
+      })
+      .partial()
+      .optional(),
+    location: z
+      .object({
+        type: z.literal("Point"),
+        coordinates: z
+          .array(z.coerce.number())
+          .length(2, "Coordinates must contain [longitude, latitude]")
+          .refine(
+            (coords) =>
+              coords[0] >= -180 &&
+              coords[0] <= 180 &&
+              coords[1] >= -90 &&
+              coords[1] <= 90,
+            "Invalid longitude or latitude",
+          ),
+      })
+      .optional(),
+    storageCapacity: z.coerce
+      .number()
+      .min(0, "Storage capacity cannot be negative")
+      .optional(),
+    hasComponentSeparation: z.coerce.boolean().optional(),
+  }),
+};
+
 export {
   hospitalRegistrationSchema,
   pendingHospitalsQuerySchema,
@@ -137,4 +211,5 @@ export {
   rejectHospitalSchema,
   getHospitalsSchema,
   getHospitalByIdSchema,
+  updateMyHospitalSchema,
 };
