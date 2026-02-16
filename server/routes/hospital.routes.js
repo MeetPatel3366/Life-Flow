@@ -8,6 +8,7 @@ import {
   hospitalRegistrationSchema,
   pendingHospitalsQuerySchema,
   rejectHospitalSchema,
+  updateMyHospitalSchema,
 } from "../validations/hospital.validation.js";
 import {
   approveHospital,
@@ -17,12 +18,22 @@ import {
   getPendingHospitals,
   registerHospital,
   rejectHospital,
+  updateMyHospitalProfile,
 } from "../controllers/hospital.controller.js";
 import upload from "../middlewares/multer.middleware.js";
 
 const router = express.Router();
 
 router.get("/me", verifyJWT, authorizeRoles("hospital"), getMyHospitalProfile);
+
+router.patch(
+  "/me",
+  verifyJWT,
+  authorizeRoles("hospital"),
+  upload.single("licenseDocument"),
+  validate(updateMyHospitalSchema),
+  updateMyHospitalProfile,
+);
 
 router.post(
   "/register",

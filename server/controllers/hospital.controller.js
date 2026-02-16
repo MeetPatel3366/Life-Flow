@@ -323,3 +323,79 @@ export const getMyHospitalProfile = asyncHandler(async (req, res) => {
       ),
     );
 });
+
+export const updateMyHospitalProfile = asyncHandler(async (req, res) => {
+  if (Object.keys(req.body).length === 0 && !req.file) {
+    throw new ApiError(400, "No fields or files provided for update");
+  }
+
+  const hospitalId = req.user.hospitalId;
+
+  if (!hospitalId) {
+    throw new ApiError(400, "Hospital profile not linked to user");
+  }
+
+  const hospital = await Hospital.findById(hospitalId);
+
+  if (!hospital) {
+    throw new ApiError(404, "Hospital profile not found");
+  }
+
+  if (hospital.verificationStatus === "Approved") {
+    throw new ApiError(
+      403,
+      "Approved hospitals cannot modify profile. Please contact support for changes.",
+    );
+  }
+
+  if (req.file) {
+    const uploadedDoc = await handleFileUpload(
+      req.file,
+      "lifeflow/hospitals",
+      hospital.licenseDocument?.public_id,
+    );
+
+    hospital.licenseDocument = uploadedDoc;
+  }
+
+  const allowedUpdates = [
+    "name",
+    "type",
+    "phone",
+    "address",
+    "contactPerson",
+    "location",
+    "storageCapacity",
+    "hasComponentSeparation",
+  ];
+
+  allowedUpdates.forEach((update) => {
+    if (req.body[update] !== undefined) {
+      if (
+        typeof req.body[update] === "object" &&
+        !Array.isArray(req.body[update])
+      ) {
+        hospital[update] = { ...hospital[update], ...req.body[update] };
+      } else {
+        hospital[update] = req.body[update];
+      }
+    }
+  });
+
+  let message = "Hospital profile updated successfully.";
+
+  if (hospital.verificationStatus === "Rejected") {
+    hospital.verificationStatus = "Pending";
+    hospital.rejectionReason = null;
+    hospital.rejectedBy = null;
+    hospital.rejectedAt = null;
+    message =
+      "Profile updated. Your hospital has been resubmitted for verification.";
+  }
+
+  const updatedHospital = await hospital.save();
+
+  const result = updatedHospital.toObject({ versionKey: false });
+
+  return res.status(200).json(new ApiResponse(200, result, message));
+});
