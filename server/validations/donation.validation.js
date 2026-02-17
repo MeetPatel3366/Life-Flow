@@ -31,4 +31,15 @@ const getMyDonationSchema = z.object({
   }),
 });
 
-export { createDonationSchema, getMyDonationSchema };
+const cancelDonationSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid donation id",
+      ),
+  }),
+});
+
+export { createDonationSchema, getMyDonationSchema, cancelDonationSchema };
