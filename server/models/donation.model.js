@@ -109,7 +109,28 @@ const donationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// compound index on hospital + status fields in ascending order
 donationSchema.index({ hospital: 1, status: 1 });
-donationSchema.index({ donor: 1 });
+
+// only 1 active donation per donor
+donationSchema.index(
+  {
+    donor: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $in: ["Scheduled", "Screening"] } },
+  },
+);
+
+// no double booking same donor + hospital + date
+donationSchema.index(
+  {
+    donor: 1,
+    hospital: 1,
+    scheduledDate: 1,
+  },
+  { unique: true },
+);
 
 export default mongoose.model("Donation", donationSchema);
