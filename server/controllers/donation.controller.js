@@ -115,3 +115,50 @@ export const getMyDonations = asyncHandler(async (req, res) => {
     ),
   );
 });
+
+export const cancelDonation = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const donorId = req.user._id;
+
+  const donation = await Donation.findOneAndUpdate(
+    {
+      _id: id,
+      donor: donorId,
+      status: "Scheduled",
+      scheduledDate: { $gte: new Date() },
+    },
+    {
+      $set: { status: "Cancelled" },
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  )
+    .select("_id status")
+    .lean();
+
+  if (!donation) {
+    const existing = await Donation.findById(id).lean();
+    if (existing.donor.toString() !== donorId.toString()) {
+      throw new ApiError(403, "You can only cancel your own donation");
+    }
+
+    if (existing.status !== "Scheduled") {
+      throw new ApiError(
+        400,
+        `Cannot cancel donation in '${existing.status}' status`,
+      );
+    }
+
+    if (existing.scheduledDate < new Date()) {
+      throw new ApiError(400, "Cannot cancel past scheduled donation");
+    }
+
+    throw new ApiError(400, "Cancellation criteria not met");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, donation, "Donation cancelled successfully"));
+});
