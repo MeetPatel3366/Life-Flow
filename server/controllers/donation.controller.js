@@ -66,3 +66,52 @@ export const createDonation = asyncHandler(async (req, res) => {
     throw error;
   }
 });
+
+export const getMyDonations = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, status } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const filter = {
+    donor: new mongoose.Types.ObjectId(req.user._id),
+  };
+
+  if (status) {
+    filter.status = status;
+  }
+
+  const [donations, totalCount] = await Promise.all([
+    Donation.find(filter)
+      .populate({
+        path: "hospital",
+        select: "name type phone address",
+      })
+      .sort({ donor: 1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select("-__v")
+      .lean(),
+
+    Donation.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        donations,
+        pagination: {
+          totalCount,
+          totalPages,
+          currentPage: page,
+          limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+      },
+      "Donations fetched successfully",
+    ),
+  );
+});
