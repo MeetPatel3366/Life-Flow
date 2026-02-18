@@ -4,12 +4,14 @@ import { validate } from "../middlewares/validate.middleware.js";
 import {
   cancelDonationSchema,
   createDonationSchema,
+  getDonationByIdSchema,
   getMyDonationSchema,
   hospitalDonationQuerySchema,
 } from "../validations/donation.validation.js";
 import {
   cancelDonation,
   createDonation,
+  getDonationById,
   getHospitalDonations,
   getMyDonations,
 } from "../controllers/donation.controller.js";
@@ -38,6 +40,14 @@ router.get(
   authorizeRoles("donor"),
   validate(getMyDonationSchema),
   getMyDonations,
+);
+
+router.get(
+  "/:id",
+  verifyJWT,
+  authorizeRoles("hospital"),
+  validate(getDonationByIdSchema),
+  getDonationById,
 );
 
 router.patch(

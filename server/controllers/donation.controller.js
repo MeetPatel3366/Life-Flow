@@ -5,6 +5,7 @@ import Hospital from "../models/hospital.model.js";
 import User from "../models/user.model.js";
 import Donation from "../models/donation.model.js";
 import mongoose from "mongoose";
+import { tr } from "zod/v4/locales";
 
 export const createDonation = asyncHandler(async (req, res) => {
   const { hospitalId, scheduledDate } = req.body;
@@ -229,4 +230,33 @@ export const getHospitalDonations = asyncHandler(async (req, res) => {
       "Hospital donations fetched successfully",
     ),
   );
+});
+
+export const getDonationById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const user = req.user;
+
+  const filter = { _id: id };
+
+  if (user.role === "donor") {
+    filter.donor = user._id;
+  } else if (user.role == "hospital") {
+    if (!user.hospitalId) {
+      throw new ApiError(400, "Hospital not linked properly");
+    }
+    filter.hospital = user.hospitalId;
+  }
+  const donation = await Donation.findOne(filter)
+    .populate("donor", "name email bloodGroup phone")
+    .populate("hospital", "name type phone address")
+    .populate("verifiedBy", "name role")
+    .lean();
+
+  if (!donation) {
+    throw new ApiError(404, "Donation not found");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, donation, "Donation fetched successfully"));
 });
