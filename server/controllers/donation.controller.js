@@ -162,3 +162,71 @@ export const cancelDonation = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, donation, "Donation cancelled successfully"));
 });
+
+export const getHospitalDonations = asyncHandler(async (req, res) => {
+  const { hospitalId, isHospitalVerified } = req.user;
+
+  if (!hospitalId) {
+    throw new ApiError(400, "Hospital account not linked properly");
+  }
+
+  if (!isHospitalVerified) {
+    throw new ApiError(403, "Hospital not verified yet");
+  }
+
+  const { status, fromDate, toDate, page = 1, limit = 10 } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const filter = {
+    hospital: hospitalId,
+  };
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (fromDate || toDate) {
+    filter.scheduledDate = {};
+    if (fromDate) {
+      const start = new Date(fromDate);
+      filter.scheduledDate.$gte = start;
+    }
+    if (toDate) {
+      const end = new Date(toDate);
+      filter.scheduledDate.$lte = end;
+    }
+  }
+
+  const [donations, totalCount] = await Promise.all([
+    Donation.find(filter)
+      .populate("donor", "name email bloodGroup phone")
+      .sort({ status: 1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select("-__v")
+      .lean(),
+
+    Donation.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        donations,
+        pagination: {
+          totalCount,
+          totalPages,
+          currentPage: page,
+          limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+      },
+      "Hospital donations fetched successfully",
+    ),
+  );
+});

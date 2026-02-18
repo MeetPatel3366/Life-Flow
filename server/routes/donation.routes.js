@@ -5,10 +5,12 @@ import {
   cancelDonationSchema,
   createDonationSchema,
   getMyDonationSchema,
+  hospitalDonationQuerySchema,
 } from "../validations/donation.validation.js";
 import {
   cancelDonation,
   createDonation,
+  getHospitalDonations,
   getMyDonations,
 } from "../controllers/donation.controller.js";
 
@@ -20,6 +22,14 @@ router.post(
   authorizeRoles("donor"),
   validate(createDonationSchema),
   createDonation,
+);
+
+router.get(
+  "/",
+  verifyJWT,
+  authorizeRoles("hospital"),
+  validate(hospitalDonationQuerySchema),
+  getHospitalDonations,
 );
 
 router.get(
