@@ -70,10 +70,45 @@ const getDonationByIdSchema = z.object({
   }),
 });
 
+const screeningDonationSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid donation id",
+      ),
+  }),
+  body: z
+    .object({
+      hemoglobin: z.number().min(5).max(20),
+      bloodPressure: z.string().min(3),
+      weight: z.number().min(50),
+      temperature: z.number().min(30).max(45),
+      pulse: z.number().min(30).max(200),
+      passed: z.boolean(),
+      remarks: z.string().trim().optional(),
+      deferralReason: z.string().trim().optional(),
+    })
+    .refine(
+      (data) => {
+        if (!data.passed && !data.deferralReason) {
+          return false;
+        }
+        return true;
+      },
+      {
+        message: "Deferral reason is required if screening failed",
+        path: ["deferralReason"],
+      },
+    ),
+});
+
 export {
   createDonationSchema,
   getMyDonationSchema,
   cancelDonationSchema,
   hospitalDonationQuerySchema,
   getDonationByIdSchema,
+  screeningDonationSchema,
 };
