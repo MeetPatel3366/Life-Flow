@@ -59,9 +59,21 @@ const hospitalDonationQuerySchema = z.object({
   }),
 });
 
+const getDonationByIdSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid donation id",
+      ),
+  }),
+});
+
 export {
   createDonationSchema,
   getMyDonationSchema,
   cancelDonationSchema,
   hospitalDonationQuerySchema,
+  getDonationByIdSchema,
 };
