@@ -42,4 +42,26 @@ const cancelDonationSchema = z.object({
   }),
 });
 
-export { createDonationSchema, getMyDonationSchema, cancelDonationSchema };
+const hospitalDonationQuerySchema = z.object({
+  query: z.object({
+    status: z
+      .enum(["Scheduled", "Screening", "Completed", "Deferred", "Cancelled"])
+      .optional(),
+    fromDate: z.iso.datetime({ message: "Invalid ISO datetime" }).optional(),
+    toDate: z.iso.datetime({ message: "Invalid ISO datetime" }).optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(50, "Limit cannot exceed 50")
+      .default(10),
+  }),
+});
+
+export {
+  createDonationSchema,
+  getMyDonationSchema,
+  cancelDonationSchema,
+  hospitalDonationQuerySchema,
+};
