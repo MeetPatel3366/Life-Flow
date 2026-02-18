@@ -7,6 +7,7 @@ import {
   getDonationByIdSchema,
   getMyDonationSchema,
   hospitalDonationQuerySchema,
+  screeningDonationSchema,
 } from "../validations/donation.validation.js";
 import {
   cancelDonation,
@@ -14,6 +15,7 @@ import {
   getDonationById,
   getHospitalDonations,
   getMyDonations,
+  updateScreening,
 } from "../controllers/donation.controller.js";
 
 const router = express.Router();
@@ -56,6 +58,13 @@ router.patch(
   authorizeRoles("donor"),
   validate(cancelDonationSchema),
   cancelDonation,
+);
+
+router.patch(
+  "/:id/screening",
+  verifyJWT,
+  validate(screeningDonationSchema),
+  updateScreening,
 );
 
 export default router;

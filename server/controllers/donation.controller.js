@@ -5,7 +5,6 @@ import Hospital from "../models/hospital.model.js";
 import User from "../models/user.model.js";
 import Donation from "../models/donation.model.js";
 import mongoose from "mongoose";
-import { tr } from "zod/v4/locales";
 
 export const createDonation = asyncHandler(async (req, res) => {
   const { hospitalId, scheduledDate } = req.body;
@@ -259,4 +258,93 @@ export const getDonationById = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, donation, "Donation fetched successfully"));
+});
+
+export const updateScreening = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const user = req.user;
+
+  if (user.role == "hospital" && !user.hospitalId) {
+    throw new ApiError(400, "Hospital not linked properly");
+  }
+
+  const {
+    hemoglobin,
+    bloodPressure,
+    weight,
+    temperature,
+    pulse,
+    passed,
+    remarks,
+    deferralReason,
+  } = req.body;
+
+  const updateQuery = {
+    _id: id,
+    status: "Scheduled",
+  };
+
+  if (user.role == "hospital") {
+    updateQuery.hospital = user.hospitalId;
+  }
+
+  const statusUpdate = passed ? "Screening" : "Deferred";
+
+  const donation = await Donation.findOneAndUpdate(
+    updateQuery,
+    {
+      $set: {
+        status: statusUpdate,
+        verifiedBy: user._id,
+        deferralReason: passed ? undefined : deferralReason,
+        screening: {
+          hemoglobin,
+          bloodPressure,
+          weight,
+          temperature,
+          pulse,
+          passed,
+          remarks,
+        },
+      },
+    },
+    { new: true, runValidators: true },
+  ).lean();
+
+  if (!donation) {
+    const existing = await Donation.findById(id).lean();
+
+    if (!existing) throw new ApiError(404, "Donation not found");
+
+    if (
+      user.role == "hospital" &&
+      existing.hospital.toString() !== user.hospitalId.toString()
+    ) {
+      throw new ApiError(
+        403,
+        "Access denied: This donation belongs to another hospital",
+      );
+    }
+
+    if (existing.status !== "Scheduled") {
+      throw new ApiError(
+        400,
+        `Cannot screen: Donation is already ${existing.status}`,
+      );
+    }
+
+    throw new ApiError(400, "Update failed: Screening criteria not met");
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        donation,
+        passed
+          ? "Screening completed successfully"
+          : "Donation deferred after screening",
+      ),
+    );
 });
