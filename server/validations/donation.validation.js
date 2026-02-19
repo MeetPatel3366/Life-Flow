@@ -115,6 +115,25 @@ const completeDonationSchema = z.object({
   }),
 });
 
+const updateLabTestsSchema = {
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid donation id",
+      ),
+  }),
+
+  body: z.object({
+    hiv: z.enum(["Negative", "Positive"]),
+    hepatitisB: z.enum(["Negative", "Positive"]),
+    hepatitisC: z.enum(["Negative", "Positive"]),
+    malaria: z.enum(["Negative", "Positive"]),
+    syphilis: z.enum(["Negative", "Positive"]),
+  }),
+};
+
 export {
   createDonationSchema,
   getMyDonationSchema,
@@ -123,4 +142,5 @@ export {
   getDonationByIdSchema,
   screeningDonationSchema,
   completeDonationSchema,
+  updateLabTestsSchema,
 };
