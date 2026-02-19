@@ -348,3 +348,86 @@ export const updateScreening = asyncHandler(async (req, res) => {
       ),
     );
 });
+
+export const completeDonation = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const user = req.user;
+
+  const donation = await Donation.findById(id)
+    .select("status screening hospital donor")
+    .lean();
+
+  if (!donation) {
+    throw new ApiError(404, "Donation record not found");
+  }
+
+  if (
+    user.role === "hospital" &&
+    donation.hospital.toString() != user.hospitalId.toString()
+  ) {
+    throw new ApiError(
+      403,
+      "You can only complete your own hospital donations",
+    );
+  }
+
+  if (donation.status !== "Screening") {
+    throw new ApiError(
+      400,
+      `Cannot complete donation in '${donation.status}' state`,
+    );
+  }
+
+  if (!donation.screening?.passed) {
+    throw new ApiError(
+      400,
+      "Donation cannot be completed because screening did not pass",
+    );
+  }
+
+  const today = new Date();
+  const nextEligible = new Date(today);
+  nextEligible.setDate(nextEligible.getDate() + 90);
+
+  const donorUpdate = await User.findByIdAndUpdate(
+    donation.donor,
+    {
+      $set: {
+        lastDonationDate: today,
+        nextEligibleDate: nextEligible,
+      },
+    },
+    { new: true, runValidators: true },
+  ).lean();
+
+  if (!donorUpdate) {
+    throw new ApiError(404, "Associated donor could not be found or updated");
+  }
+
+  const updateDonation = await Donation.findOneAndUpdate(
+    { _id: id, status: "Screening" },
+    {
+      $set: {
+        status: "Completed",
+        donationDate: today,
+      },
+    },
+    { new: true },
+  )
+    .select("-__v")
+    .lean();
+
+  if (!updateDonation) {
+    throw new ApiError(409, "Donation was already modified by another process");
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        updateDonation,
+        "Donaton completed and donor eligibility updated",
+      ),
+    );
+});

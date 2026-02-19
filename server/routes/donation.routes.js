@@ -3,6 +3,7 @@ import { authorizeRoles, verifyJWT } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
   cancelDonationSchema,
+  completeDonationSchema,
   createDonationSchema,
   getDonationByIdSchema,
   getMyDonationSchema,
@@ -11,6 +12,7 @@ import {
 } from "../validations/donation.validation.js";
 import {
   cancelDonation,
+  completeDonation,
   createDonation,
   getDonationById,
   getHospitalDonations,
@@ -65,6 +67,13 @@ router.patch(
   verifyJWT,
   validate(screeningDonationSchema),
   updateScreening,
+);
+
+router.patch(
+  "/:id/complete",
+  verifyJWT,
+  validate(completeDonationSchema),
+  completeDonation,
 );
 
 export default router;
