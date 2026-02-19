@@ -431,3 +431,86 @@ export const completeDonation = asyncHandler(async (req, res) => {
       ),
     );
 });
+
+export const updateLabTests = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { hiv, hepatitisB, hepatitisC, malaria, syphilis } = req.body;
+  const user = req.user;
+
+  const donation = await Donation.findById(id)
+    .select("status hospital labTests")
+    .lean();
+
+  if (!donation) {
+    throw new ApiError(404, "Donation not found");
+  }
+
+  if (
+    user.role === "hospital" &&
+    donation.hospital.toString() !== user.hospitalId.toString()
+  ) {
+    throw new ApiError(403, "You can update only your hospital donations");
+  }
+
+  if (donation.status !== "Completed") {
+    throw new ApiError(
+      400,
+      "Lab tests can only be updated after donation is completed",
+    );
+  }
+
+  if (donation.labTests?.testedAt) {
+    throw new ApiError(400, "Lab tests already finalized");
+  }
+
+  const hasPositive = [hiv, hepatitisB, hepatitisC, malaria, syphilis].some(
+    (result) => result === "Positive",
+  );
+
+  const finalStatus = hasPositive ? "Deferred" : "Completed";
+  const deferralReason = hasPositive
+    ? "Infectious disease detected in lab test"
+    : null;
+
+  const updatedDonation = await Donation.findOneAndUpdate(
+    {
+      _id: id,
+      status: "Completed",
+      "labTests.testedAt": { $exists: false },
+    },
+    {
+      $set: {
+        "labTests.hiv": hiv,
+        "labTests.hepatitisB": hepatitisB,
+        "labTests.hepatitisC": hepatitisC,
+        "labTests.malaria": malaria,
+        "labTests.syphilis": syphilis,
+        "labTests.testedAt": new Date(),
+        status: finalStatus,
+        deferralReason: deferralReason,
+      },
+    },
+    { new: true },
+  )
+    .select("-__v")
+    .lean();
+
+  if (!updatedDonation) {
+    throw new ApiError(
+      409,
+      "Update failed: The record was modified by another user or is in an invalid state",
+    );
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        updatedDonation,
+        hasPositive
+          ? "Lab tests updated. Donation marked as deferred due to positive result."
+          : "Lab tests updated successfully. Donation is safe.",
+      ),
+    );
+});

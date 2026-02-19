@@ -9,6 +9,7 @@ import {
   getMyDonationSchema,
   hospitalDonationQuerySchema,
   screeningDonationSchema,
+  updateLabTestsSchema,
 } from "../validations/donation.validation.js";
 import {
   cancelDonation,
@@ -17,6 +18,7 @@ import {
   getDonationById,
   getHospitalDonations,
   getMyDonations,
+  updateLabTests,
   updateScreening,
 } from "../controllers/donation.controller.js";
 
@@ -74,6 +76,13 @@ router.patch(
   verifyJWT,
   validate(completeDonationSchema),
   completeDonation,
+);
+
+router.patch(
+  "/:id/lab-tests",
+  verifyJWT,
+  validate(updateLabTestsSchema),
+  updateLabTests,
 );
 
 export default router;
