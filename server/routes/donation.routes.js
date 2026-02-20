@@ -6,6 +6,7 @@ import {
   completeDonationSchema,
   createDonationSchema,
   getDonationByIdSchema,
+  getHospitalDonationsSchema,
   getMyDonationSchema,
   hospitalDonationQuerySchema,
   screeningDonationSchema,
@@ -16,6 +17,7 @@ import {
   completeDonation,
   createDonation,
   getDonationById,
+  getDonationsByHospital,
   getHospitalDonations,
   getMyDonations,
   updateLabTests,
@@ -46,6 +48,14 @@ router.get(
   authorizeRoles("donor"),
   validate(getMyDonationSchema),
   getMyDonations,
+);
+
+router.get(
+  "/hospital/:id",
+  verifyJWT,
+  authorizeRoles("admin"),
+  validate(getHospitalDonationsSchema),
+  getDonationsByHospital,
 );
 
 router.get(

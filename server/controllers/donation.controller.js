@@ -514,3 +514,61 @@ export const updateLabTests = asyncHandler(async (req, res) => {
       ),
     );
 });
+
+export const getDonationsByHospital = asyncHandler(async (req, res) => {
+  const { hospitalId } = req.params;
+  const { status, startDate, endDate, page = 1, limit = 10 } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const filter = {
+    hospital: new mongoose.Types.ObjectId(hospitalId),
+  };
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    if (startDate) {
+      filter.createdAt.$gte = new Date(startDate);
+    }
+    if (endDate) {
+      filter.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+    }
+  }
+
+  const [donations, totalCount] = await Promise.all([
+    await Donation.find(filter)
+      .populate("donor", "name email bloodGroup")
+      .populate("hospital", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select("-__v -updatedAt")
+      .lean(),
+
+    Donation.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        donations,
+        pagination: {
+          totalCount,
+          totalPages,
+          currentPage: page,
+          limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+      },
+      "Hospital donations fetched successfully",
+    ),
+  );
+});
