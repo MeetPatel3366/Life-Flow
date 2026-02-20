@@ -572,3 +572,54 @@ export const getDonationsByHospital = asyncHandler(async (req, res) => {
     ),
   );
 });
+
+export const rescheduleDonation = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { scheduledDate } = req.body;
+  const user = req.user;
+
+  const donation = await Donation.findById(id)
+    .select("donor status scheduledDate")
+    .lean();
+
+  if (!donation) {
+    throw new ApiError(404, "Donation record not found");
+  }
+
+  if (donation.donor.toString() !== user._id.toString()) {
+    throw new ApiError(403, "You can only reschedule your own donation");
+  }
+
+  if (donation.status !== "Scheduled") {
+    throw new ApiError(
+      400,
+      `Donation cannot be rescheduled after ${donation.status}`,
+    );
+  }
+
+  const donor = await User.findById(user._id).select("nextEligibleDate").lean();
+
+  if (
+    donor.nextEligibleDate &&
+    new Date(scheduledDate) < new Date(donor.nextEligibleDate)
+  ) {
+    throw new ApiError(
+      400,
+      `You are eligible to donate only after ${donor.nextEligibleDate}`,
+    );
+  }
+
+  const updateDonation = await Donation.findByIdAndUpdate(
+    id,
+    { $set: { scheduledDate: new Date(scheduledDate) } },
+    { new: true, runValidators: true },
+  )
+    .select("-__v")
+    .lean();
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, updateDonation, "Donation rescheduled successfully"),
+    );
+});
