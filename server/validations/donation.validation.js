@@ -157,6 +157,25 @@ const getHospitalDonationsSchema = {
   }),
 };
 
+const rescheduleDonationSchema = {
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid donation id",
+      ),
+  }),
+
+  body: z.object({
+    scheduledDate: z.iso
+      .datetime({ error: "Invalid date format" })
+      .refine((date) => new Date(date) > new Date(), {
+        error: "Scheduled date must be in the future",
+      }),
+  }),
+};
+
 export {
   createDonationSchema,
   getMyDonationSchema,
@@ -167,4 +186,5 @@ export {
   completeDonationSchema,
   updateLabTestsSchema,
   getHospitalDonationsSchema,
+  rescheduleDonationSchema,
 };
