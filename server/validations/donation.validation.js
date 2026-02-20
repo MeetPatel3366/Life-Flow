@@ -134,6 +134,29 @@ const updateLabTestsSchema = {
   }),
 };
 
+const getHospitalDonationsSchema = {
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid hospital id",
+      ),
+  }),
+
+  query: z.object({
+    status: z
+      .enum(["Scheduled", "Screening", "Completed", "Deferred", "Cancelled"])
+      .optional(),
+
+    startDate: z.iso.datetime().optional(),
+    endDate: z.iso.datetime().optional(),
+
+    page: z.coerce.number().min(1).default(1),
+    limit: z.coerce.number().min(1).max(100).default(10),
+  }),
+};
+
 export {
   createDonationSchema,
   getMyDonationSchema,
@@ -143,4 +166,5 @@ export {
   screeningDonationSchema,
   completeDonationSchema,
   updateLabTestsSchema,
+  getHospitalDonationsSchema,
 };
