@@ -62,4 +62,48 @@ const getBloodStockByIdSchema = {
   }),
 };
 
-export { createBloodStockSchema, getBloodStockSchema, getBloodStockByIdSchema };
+const getHospitalBloodStockSchema = z.object({
+  params: z.object({
+    hospitalId: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid Hospital ObjectId",
+      ),
+  }),
+
+  query: z.object({
+    bloodGroup: z
+      .enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])
+      .optional(),
+
+    componentType: z
+      .enum(["Whole Blood", "RBC", "Plasma", "Platelets"])
+      .optional(),
+
+    status: z
+      .enum([
+        "Available",
+        "Reserved",
+        "In Transit",
+        "Issued",
+        "Expired",
+        "Discarded",
+        "Processed",
+      ])
+      .optional(),
+
+    page: z.coerce.number().min(1).default(1),
+    limit: z.coerce.number().min(1).max(50).default(10),
+
+    sortBy: z.enum(["expiryDate", "createdAt"]).default("expiryDate"),
+    sortOrder: z.enum(["asc", "desc"]).default("asc"),
+  }),
+});
+
+export {
+  createBloodStockSchema,
+  getBloodStockSchema,
+  getBloodStockByIdSchema,
+  getHospitalBloodStockSchema,
+};
