@@ -51,7 +51,15 @@ const getBloodStockSchema = {
   }),
 };
 
-export {
-  createBloodStockSchema,
-  getBloodStockSchema,
+const getBloodStockByIdSchema = {
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid Blood Stock ObjectId",
+      ),
+  }),
 };
+
+export { createBloodStockSchema, getBloodStockSchema, getBloodStockByIdSchema };
