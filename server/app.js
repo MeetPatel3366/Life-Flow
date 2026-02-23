@@ -6,6 +6,7 @@ import { errorMiddleware, notFound } from "./middlewares/error.middleware.js";
 import userRoutes from "./routes/user.routes.js";
 import hospitalRoutes from "./routes/hospital.routes.js";
 import donationRoutes from "./routes/donation.routes.js";
+import bloodStockRoutes from "./routes/bloodStock.routes.js";
 
 config();
 const app = express();
@@ -23,6 +24,7 @@ app.use(cookieParser());
 app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/hospital", hospitalRoutes);
 app.use("/api/v1/donation", donationRoutes);
+app.use("/api/v1/bloodstock", bloodStockRoutes);
 
 app.use(notFound);
 
