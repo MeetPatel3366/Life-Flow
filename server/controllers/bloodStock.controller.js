@@ -121,3 +121,100 @@ export const createBloodStock = asyncHandler(async (req, res) => {
     .status(201)
     .json(new ApiResponse(201, "Blood stock created successfully", bloodStock));
 });
+
+export const getBloodStock = asyncHandler(async (req, res) => {
+  const {
+    bloodGroup,
+    componentType,
+    status,
+    hospitalId,
+    page = 1,
+    limit = 10,
+    sortBy,
+    sortOrder,
+  } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const filter = {};
+
+  if (req.user.role == "hospital") {
+    filter.hospital = req.user.hospitalId;
+  }
+
+  if (req.user.role == "admin" && hospitalId) {
+    filter.hospital = hospitalId;
+  }
+
+  if (bloodGroup) {
+    filter.bloodGroup = bloodGroup;
+  }
+
+  if (componentType) {
+    filter.componentType = componentType;
+  }
+
+  if (status) {
+    filter.status = status;
+  }
+
+  const expiredCount = await BloodStock.countDocuments({
+    expiryDate: { $lt: new Date() },
+    status: "Active",
+  });
+
+  if (expiredCount > 0) {
+    await BloodStock.updateMany(
+      {
+        expiryDate: { $lt: new Date() },
+        status: "Active",
+      },
+      {
+        $set: {
+          status: "Expired",
+        },
+      },
+    );
+  }
+
+  const sort = {
+    [sortBy]: sortOrder === "asc" ? 1 : -1,
+  };
+
+  const [bloodStocks, totalCount] = await Promise.all([
+    BloodStock.find(filter)
+      .populate("hospital", "name type address phone")
+      .populate({
+        path: "donation",
+        select: "donor donationDate bloodGroup",
+        populate: {
+          path: "donor",
+          model: "User",
+          select: "name email phone",
+        },
+      })
+      .select("-__v")
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+
+    BloodStock.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return res.status(200).json(
+    new ApiResponse(200, "Blood stock fetched successfully", {
+      bloodStocks,
+      pagination: {
+        totalCount,
+        totalPages,
+        currentPage: page,
+        limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    }),
+  );
+});
