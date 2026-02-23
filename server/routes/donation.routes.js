@@ -19,6 +19,7 @@ import {
   createDonation,
   getDonationById,
   getDonationsByHospital,
+  getDonationStats,
   getHospitalDonations,
   getMyDonations,
   rescheduleDonation,
@@ -51,6 +52,8 @@ router.get(
   validate(getMyDonationSchema),
   getMyDonations,
 );
+
+router.get("/stats", verifyJWT, authorizeRoles("admin"), getDonationStats);
 
 router.get(
   "/hospital/:id",

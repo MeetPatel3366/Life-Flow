@@ -623,3 +623,122 @@ export const rescheduleDonation = asyncHandler(async (req, res) => {
       new ApiResponse(200, updateDonation, "Donation rescheduled successfully"),
     );
 });
+
+export const getDonationStats = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const lastYear = new Date();
+  lastYear.setMonth(now.getMonth() - 12);
+
+  const stats = await Donation.aggregate([
+    {
+      $facet: {
+        overallStats: [
+          {
+            $group: {
+              _id: "$status",
+              count: { $sum: 1 },
+            },
+          },
+        ],
+
+        bloodGroupStats: [
+          {
+            $match: {
+              status: "Completed",
+            },
+          },
+          {
+            $group: {
+              _id: "$bloodGroup",
+              count: { $sum: 1 },
+            },
+          },
+          {
+            $sort: {
+              count: -1,
+            },
+          },
+        ],
+
+        monthlyTrend: [
+          {
+            $match: {
+              donationDate: { $gte: lastYear },
+              status: "Completed",
+            },
+          },
+          {
+            $group: {
+              _id: {
+                year: { $year: "$donationDate" },
+                month: { $month: "$donationDate" },
+              },
+              total: { $sum: 1 },
+            },
+          },
+          {
+            $sort: { "_id.year": 1, "_id.month": 1 },
+          },
+        ],
+
+        hospitalStats: [
+          { $match: { status: "Completed" } },
+          {
+            $group: {
+              _id: "$hospital",
+              totalDonations: { $sum: 1 },
+            },
+          },
+          { $sort: { totalDonations: -1 } },
+          { $limit: 5 },
+          {
+            $lookup: {
+              from: "hospitals",
+              localField: "_id",
+              foreignField: "_id",
+              as: "hospital",
+            },
+          },
+          { $unwind: "$hospital" },
+          {
+            $project: {
+              _id: 0,
+              hospitalId: "$hospital._id",
+              hospitalName: "$hospital.name",
+              totalDonations: 1,
+            },
+          },
+        ],
+      },
+    },
+  ]);
+
+  const overall = stats[0].overallStats;
+
+  const formattedOverall = {
+    total: overall.reduce((accum, curr) => accum + curr.count, 0),
+    Scheduled: 0,
+    Screening: 0,
+    Completed: 0,
+    Deferred: 0,
+    Cancelled: 0,
+  };
+
+  overall.forEach((item) => {
+    formattedOverall[item._id] = item.count;
+  });
+
+  const successRate =
+    formattedOverall.total > 0
+      ? ((formattedOverall.Completed / formattedOverall.total) * 100).toFixed(2)
+      : 0;
+
+  return res.status(200).json(
+    new ApiResponse(200, "Donation statistics fetched successfully", {
+      overall: { ...formattedOverall, successRate: `${successRate}%` },
+      bloodGroupDistribution: stats[0].bloodGroupStats,
+      monthlyTrend: stats[0].monthlyTrend,
+      topHospitals: stats[0].hospitalStats,
+    }),
+  );
+});
