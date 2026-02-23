@@ -109,9 +109,6 @@ const donationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// compound index on hospital + status fields in ascending order
-donationSchema.index({ hospital: 1, status: 1 });
-
 // only 1 active donation per donor
 donationSchema.index(
   {
@@ -132,5 +129,17 @@ donationSchema.index(
   },
   { unique: true },
 );
+
+// compound index on donor + status in ascending order & createdAt in descending
+donationSchema.index({ donor: 1, status: 1, createdAt: -1 });
+
+// compound index on hospital + status fields in ascending order & scheduledDate in descending
+donationSchema.index({ hospital: 1, status: 1, scheduledDate: -1 });
+
+donationSchema.index({ status: 1 });
+
+donationSchema.index({ _id: 1, status: 1 });
+
+donationSchema.index({ status: 1, "labTests.testedAt": 1 });
 
 export default mongoose.model("Donation", donationSchema);
