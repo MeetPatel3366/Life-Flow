@@ -218,3 +218,45 @@ export const getBloodStock = asyncHandler(async (req, res) => {
     }),
   );
 });
+
+export const getBloodStockById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const bloodStock = await BloodStock.findById(id)
+    .populate("hospital", "name type address phone")
+    .populate({
+      path: "donation",
+      select: "donor donationDate",
+      populate: {
+        path: "donor",
+        model: "User",
+        select: "name email phone bloodGroup",
+      },
+    })
+    .populate("request", "patient bloodGroup status")
+    .populate("transfer", "status")
+    .lean();
+
+  if (!bloodStock) {
+    throw new ApiError(404, "Blood stock not found");
+  }
+
+  if (req.user.role === "hospital") {
+    const hospital = await Hospital.findById(req.user.hospitalId).select("_id");
+
+    if (!hospital) {
+      throw new ApiError(403, "Hospital not associated with user");
+    }
+
+    if (
+      !bloodStock.hospital ||
+      bloodStock.hospital._id.toString() !== hospital._id.toString()
+    ) {
+      throw new ApiError(403, "You are not allowed to access this blood stock");
+    }
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Blood stock fetched successfully", bloodStock));
+});
