@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 import Hospital from "../models/hospital.model.js";
 import BloodStock from "../models/bloodStock.model.js";
 import Donation from "../models/donation.model.js";
+import mongoose from "mongoose";
 
 export const createBloodStock = asyncHandler(async (req, res) => {
   const { donationId, componentType, quantity, expiryDate, notes } = req.body;
@@ -259,4 +260,84 @@ export const getBloodStockById = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, "Blood stock fetched successfully", bloodStock));
+});
+
+export const getHospitalBloodStock = asyncHandler(async (req, res) => {
+  const { hospitalId } = req.params;
+
+  const {
+    bloodGroup,
+    componentType,
+    status,
+    page = 1,
+    limit = 10,
+    sortBy,
+    sortOrder,
+  } = req.query;
+
+  const hospital = await Hospital.findById(hospitalId)
+    .select("name address phone")
+    .lean();
+
+  if (!hospital) {
+    throw new ApiError(404, "Hospital not found");
+  }
+
+  const filter = {
+    hospital: hospitalId,
+  };
+
+  if (bloodGroup) {
+    filter.bloodGroup = bloodGroup;
+  }
+
+  if (componentType) {
+    filter.componentType = componentType;
+  }
+
+  if (status) {
+    filter.status = status;
+  }
+
+  const skip = (page - 1) * limit;
+
+  const sort = {
+    [sortBy]: sortOrder === "asc" ? 1 : -1,
+  };
+
+  const [bloodStocks, totalCount] = await Promise.all([
+    BloodStock.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .populate({
+        path: "donation",
+        select: "donor donationDate bloodGroup",
+        populate: {
+          path: "donor",
+          model: "User",
+          select: "name email phone",
+        },
+      })
+      .lean(),
+
+    BloodStock.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return res.status(200).json(
+    new ApiResponse(200, "Hospital blood stock fetched successfully", {
+      hospital,
+      bloodStocks,
+      pagination: {
+        totalCount,
+        totalPages,
+        currentPage: page,
+        limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    }),
+  );
 });

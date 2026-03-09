@@ -5,11 +5,13 @@ import {
   createBloodStockSchema,
   getBloodStockByIdSchema,
   getBloodStockSchema,
+  getHospitalBloodStockSchema,
 } from "../validations/bloodStock.validation.js";
 import {
   createBloodStock,
   getBloodStock,
   getBloodStockById,
+  getHospitalBloodStock,
 } from "../controllers/bloodStock.controller.js";
 
 const router = express.Router();
@@ -36,6 +38,14 @@ router.get(
   authorizeRoles("hospital", "admin"),
   validate(getBloodStockByIdSchema),
   getBloodStockById,
+);
+
+router.get(
+  "/hospital/:hospitalId",
+  verifyJWT,
+  authorizeRoles("admin"),
+  validate(getHospitalBloodStockSchema),
+  getHospitalBloodStock,
 );
 
 export default router;
