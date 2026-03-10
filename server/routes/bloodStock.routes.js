@@ -6,6 +6,7 @@ import {
   getBloodStockByIdSchema,
   getBloodStockSchema,
   getHospitalBloodStockSchema,
+  separateComponentsSchema,
   updateBloodStockStatusSchema,
 } from "../validations/bloodStock.validation.js";
 import {
@@ -13,6 +14,7 @@ import {
   getBloodStock,
   getBloodStockById,
   getHospitalBloodStock,
+  separateComponents,
   updateBloodStockStatus,
 } from "../controllers/bloodStock.controller.js";
 
@@ -56,6 +58,14 @@ router.patch(
   authorizeRoles("hospital"),
   validate(updateBloodStockStatusSchema),
   updateBloodStockStatus,
+);
+
+router.post(
+  "/:id/separate-components",
+  verifyJWT,
+  authorizeRoles("hospital"),
+  validate(separateComponentsSchema),
+  separateComponents,
 );
 
 export default router;

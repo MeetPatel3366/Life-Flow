@@ -400,3 +400,103 @@ export const updateBloodStockStatus = asyncHandler(async (req, res) => {
       ),
     );
 });
+
+export const separateComponents = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { createPlatelets } = req.body;
+  const user = req.user;
+
+  const [parentUnit, hospital] = await Promise.all([
+    BloodStock.findById(id).lean(),
+    Hospital.findById(user.hospitalId).lean(),
+  ]);
+
+  if (!parentUnit) {
+    throw new ApiError(404, "Blood unit not found");
+  }
+
+  if (
+    user.role === "hospital" &&
+    parentUnit.hospital.toString() !== user.hospitalId.toString()
+  ) {
+    throw new ApiError(403, "Unauthorized to separate this unit");
+  }
+
+  if (parentUnit.componentType !== "Whole Blood") {
+    throw new ApiError(400, "Only Whole Blood can be separated");
+  }
+
+  if (parentUnit.status !== "Available") {
+    throw new ApiError(400, "Only Available units can be separated");
+  }
+
+  if (parentUnit.isComponentSeparated) {
+    throw new ApiError(400, "Components already separated");
+  }
+
+  if (!hospital?.hasComponentSeparation) {
+    throw new ApiError(
+      400,
+      "Your hospital does not have component separation capability",
+    );
+  }
+
+  const now = new Date();
+
+  const expiryRules = [
+    { type: "RBC", days: 40 },
+    { type: "Plasma", years: 1 },
+    ...(createPlatelets ? [{ type: "Platelets", days: 5 }] : []),
+  ];
+
+  const updatedParentUnit = await BloodStock.findOneAndUpdate(
+    {
+      _id: id,
+      isComponentSeparated: false,
+      status: "Available",
+    },
+    {
+      $set: {
+        status: "Processed",
+        isComponentSeparated: true,
+      },
+    },
+    { new: true },
+  ).lean();
+
+  if (!updatedParentUnit) {
+    throw new ApiError(
+      409,
+      "Unit was modified by another process. Please refresh and try again.",
+    );
+  }
+
+  const componentsToCreate = expiryRules.map((rule) => {
+    const expiry = new Date(now);
+    if (rule.days) {
+      expiry.setDate(expiry.getDate() + rule.days);
+    }
+    if (rule.years) {
+      expiry.setFullYear(expiry.getFullYear() + rule.years);
+    }
+
+    return {
+      hospital: parentUnit.hospital,
+      donation: parentUnit.donation,
+      bloodGroup: parentUnit.bloodGroup,
+      componentType: rule.type,
+      expiryDate: expiry,
+      parentUnit: parentUnit._id,
+      status: "Available",
+    };
+  });
+
+  const createdUnits = await BloodStock.insertMany(componentsToCreate);
+
+  return res.status(201).json(
+    new ApiResponse(201, "Components separated successfully", {
+      parent: updatedParentUnit._id,
+      components: createdUnits,
+    }),
+  );
+});
