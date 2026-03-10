@@ -125,10 +125,26 @@ const updateBloodStockStatusSchema = {
   }),
 };
 
+const separateComponentsSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid blood stock ObjectId",
+      ),
+  }),
+
+  body: z.object({
+    createPlatelets: z.boolean().default(true),
+  }),
+});
+
 export {
   createBloodStockSchema,
   getBloodStockSchema,
   getBloodStockByIdSchema,
   getHospitalBloodStockSchema,
   updateBloodStockStatusSchema,
+  separateComponentsSchema,
 };
