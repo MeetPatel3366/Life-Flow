@@ -101,9 +101,34 @@ const getHospitalBloodStockSchema = z.object({
   }),
 });
 
+const updateBloodStockStatusSchema = {
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid blood stock ObjectId",
+      ),
+  }),
+
+  body: z.object({
+    status: z.enum([
+      "Available",
+      "Reserved",
+      "In Transit",
+      "Issued",
+      "Expired",
+      "Discarded",
+      "Processed",
+    ]),
+    notes: z.string().trim().max(500).optional(),
+  }),
+};
+
 export {
   createBloodStockSchema,
   getBloodStockSchema,
   getBloodStockByIdSchema,
   getHospitalBloodStockSchema,
+  updateBloodStockStatusSchema,
 };
