@@ -341,3 +341,62 @@ export const getHospitalBloodStock = asyncHandler(async (req, res) => {
     }),
   );
 });
+
+export const updateBloodStockStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, notes } = req.body;
+
+  const bloodStock = await BloodStock.findById(id).lean();
+
+  if (!bloodStock) {
+    throw new ApiError(404, "Blood stock not found");
+  }
+
+  if (
+    req.user.role === "hospital" &&
+    bloodStock.hospital.toString() !== req.user.hospitalId.toString()
+  ) {
+    throw new ApiError(403, "Unauthorized to modify this stock");
+  }
+
+  if (["Issued", "Discarded"].includes(bloodStock.status)) {
+    throw new ApiError(
+      400,
+      `Cannot modify stock once it is ${bloodStock.status}`,
+    );
+  }
+
+  if (bloodStock.status == status) {
+    throw new ApiError(400, "Stock already in requested status");
+  }
+
+  if (new Date(bloodStock.expiryDate) < new Date() && status !== "Expired") {
+    throw new ApiError(400, "Stock is already expired");
+  }
+
+  const updateBloodStock = await BloodStock.findByIdAndUpdate(
+    id,
+    {
+      status,
+      ...(notes && { notes }),
+      updatedAt: new Date(),
+    },
+    {
+      new: true,
+    },
+  ).lean();
+
+  if (!updateBloodStock) {
+    throw new ApiError(500, "Failed to update blood stock");
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        "Blood stock status updated successfully",
+        updateBloodStock,
+      ),
+    );
+});
