@@ -570,3 +570,123 @@ export const getAvailableBloodStock = asyncHandler(async (req, res) => {
     }),
   );
 });
+
+export const getBloodStockStats = asyncHandler(async (req, res) => {
+  const { hospital, expiringInDays = 7 } = req.query;
+
+  const now = new Date();
+  const expiryThreshold = new Date();
+  expiryThreshold.setDate(now.getDate() + expiringInDays);
+
+  const matchStage = {};
+
+  if (hospital) {
+    matchStage.hospital = new mongoose.Types.ObjectId(hospital);
+  }
+
+  const stats = await BloodStock.aggregate([
+    { $match: matchStage },
+    {
+      $facet: {
+        overview: [
+          {
+            $group: {
+              _id: null,
+              totalUnits: {
+                $sum: 1,
+              },
+              availableUnits: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Available"] }, 1, 0],
+                },
+              },
+              reservedUnits: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Reserved"] }, 1, 0],
+                },
+              },
+              issuedUnits: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Issued"] }, 1, 0],
+                },
+              },
+              expiredUnits: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Expired"] }, 1, 0],
+                },
+              },
+            },
+          },
+        ],
+
+        byBloodGroup: [
+          {
+            $group: {
+              _id: "$bloodGroup",
+              total: { $sum: 1 },
+              available: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Available"] }, 1, 0],
+                },
+              },
+            },
+          },
+          { $sort: { _id: 1 } },
+        ],
+
+        byComponentType: [
+          {
+            $group: {
+              _id: "$componentType",
+              total: { $sum: 1 },
+              available: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Available"] }, 1, 0],
+                },
+              },
+            },
+          },
+        ],
+
+        expiringSoon: [
+          {
+            $match: {
+              expiryDate: { $gte: now, $lte: expiryThreshold },
+              status: "Available",
+            },
+          },
+          {
+            $group: {
+              _id: "$bloodGroup",
+              count: { $sum: 1 },
+            },
+          },
+        ],
+
+        lowStock: [
+          {
+            $group: {
+              _id: "$bloodGroup",
+              available: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Available"] }, 1, 0],
+                },
+              },
+            },
+          },
+          { $match: { available: { $lt: 5 } } },
+        ],
+      },
+    },
+  ]);
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        "Blood stock statistics fetched successfully",
+        stats[0],
+      ),
+    );
+});

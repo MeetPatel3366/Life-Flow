@@ -6,6 +6,7 @@ import {
   getAvailableBloodStockSchema,
   getBloodStockByIdSchema,
   getBloodStockSchema,
+  getBloodStockStatsSchema,
   getHospitalBloodStockSchema,
   separateComponentsSchema,
   updateBloodStockStatusSchema,
@@ -15,6 +16,7 @@ import {
   getAvailableBloodStock,
   getBloodStock,
   getBloodStockById,
+  getBloodStockStats,
   getHospitalBloodStock,
   separateComponents,
   updateBloodStockStatus,
@@ -44,6 +46,14 @@ router.get(
   authorizeRoles("hospital", "patient"),
   validate(getAvailableBloodStockSchema),
   getAvailableBloodStock,
+);
+
+router.get(
+  "/stats",
+  verifyJWT,
+  authorizeRoles("admin"),
+  validate(getBloodStockStatsSchema),
+  getBloodStockStats,
 );
 
 router.get(
