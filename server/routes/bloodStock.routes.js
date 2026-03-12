@@ -3,6 +3,7 @@ import { authorizeRoles, verifyJWT } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
   createBloodStockSchema,
+  getAvailableBloodStockSchema,
   getBloodStockByIdSchema,
   getBloodStockSchema,
   getHospitalBloodStockSchema,
@@ -11,6 +12,7 @@ import {
 } from "../validations/bloodStock.validation.js";
 import {
   createBloodStock,
+  getAvailableBloodStock,
   getBloodStock,
   getBloodStockById,
   getHospitalBloodStock,
@@ -34,6 +36,14 @@ router.get(
   authorizeRoles("hospital", "admin"),
   validate(getBloodStockSchema),
   getBloodStock,
+);
+
+router.get(
+  "/available",
+  verifyJWT,
+  authorizeRoles("hospital", "patient"),
+  validate(getAvailableBloodStockSchema),
+  getAvailableBloodStock,
 );
 
 router.get(

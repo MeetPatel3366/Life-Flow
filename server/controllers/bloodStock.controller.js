@@ -500,3 +500,73 @@ export const separateComponents = asyncHandler(async (req, res) => {
     }),
   );
 });
+
+export const getAvailableBloodStock = asyncHandler(async (req, res) => {
+  const {
+    bloodGroup,
+    componentType,
+    hospital,
+    page = 1,
+    limit = 10,
+    sortBy,
+    sortOrder,
+  } = req.query;
+
+  const user = req.user;
+
+  const skip = (page - 1) * limit;
+  const now = new Date();
+
+  const filter = {
+    status: "Available",
+    expiryDate: { $gt: now },
+  };
+
+  if (bloodGroup) {
+    filter.bloodGroup = bloodGroup;
+  }
+
+  if (componentType) {
+    filter.componentType = componentType;
+  }
+
+  if (hospital) {
+    filter.hospital = hospital;
+  }
+
+  if (user.role === "hospital") {
+    filter.hospital = user.hospitalId;
+  }
+
+  const sort = {
+    [sortBy]: sortOrder === "asc" ? 1 : -1,
+  };
+
+  const [bloodStocks, totalCount] = await Promise.all([
+    BloodStock.find(filter)
+      .populate("hospital", "name phone address location")
+      .select("-__v -updatedAt")
+      .sort(sort)
+      .limit(limit)
+      .skip(skip)
+      .lean(),
+
+    BloodStock.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return res.status(200).json(
+    new ApiResponse(200, "Available blood stock fetched successfully", {
+      bloodStocks,
+      pagination: {
+        totalCount,
+        totalPages,
+        currentPage: page,
+        limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    }),
+  );
+});
