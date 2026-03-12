@@ -162,6 +162,13 @@ const getAvailableBloodStockSchema = z.object({
   }),
 });
 
+const getBloodStockStatsSchema = z.object({
+  query: z.object({
+    hospital: z.string().optional(),
+    expiringInDays: z.coerce.number().min(1).max(365).default(7),
+  }),
+});
+
 export {
   createBloodStockSchema,
   getBloodStockSchema,
@@ -170,4 +177,5 @@ export {
   updateBloodStockStatusSchema,
   separateComponentsSchema,
   getAvailableBloodStockSchema,
+  getBloodStockStatsSchema,
 };
