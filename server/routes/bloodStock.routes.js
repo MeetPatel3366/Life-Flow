@@ -9,6 +9,7 @@ import {
   getBloodStockStatsSchema,
   getHospitalBloodStockSchema,
   separateComponentsSchema,
+  updateBloodStockSchema,
   updateBloodStockStatusSchema,
 } from "../validations/bloodStock.validation.js";
 import {
@@ -20,6 +21,7 @@ import {
   getHospitalBloodStock,
   separateComponents,
   updateBloodStockStatus,
+  updateBloodStock,
 } from "../controllers/bloodStock.controller.js";
 
 const router = express.Router();
@@ -70,6 +72,14 @@ router.get(
   authorizeRoles("admin"),
   validate(getHospitalBloodStockSchema),
   getHospitalBloodStock,
+);
+
+router.patch(
+  "/:id",
+  verifyJWT,
+  authorizeRoles("hospital"),
+  validate(updateBloodStockSchema),
+  updateBloodStock,
 );
 
 router.patch(

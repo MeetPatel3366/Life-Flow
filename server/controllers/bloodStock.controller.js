@@ -690,3 +690,48 @@ export const getBloodStockStats = asyncHandler(async (req, res) => {
       ),
     );
 });
+
+export const updateBloodStock = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { quantity, notes } = req.body;
+
+  const filter = {
+    _id: id,
+    status: "Available",
+  };
+
+  if (req.user.role === "hospital") {
+    filter.hospital = req.user.hospitalId;
+  }
+
+  const updateData = {};
+
+  if (quantity) {
+    updateData.quantity = quantity;
+  }
+
+  if (notes) {
+    updateData.notes = notes;
+  }
+
+  const updatedStock = await BloodStock.findOneAndUpdate(
+    filter,
+    { $set: updateData },
+    { new: true, runValidators: true },
+  ).lean();
+
+  if (!updatedStock) {
+    const exists = await BloodStock.exists({ _id: id });
+    if (!exists) {
+      throw new ApiError(400, "Blood stock record not found");
+    }
+
+    throw new ApiError(400, "Update failed: Stock is no longer available");
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, "Blood stock updated successfully", updatedStock),
+    );
+});
