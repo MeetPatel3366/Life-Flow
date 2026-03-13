@@ -169,6 +169,26 @@ const getBloodStockStatsSchema = z.object({
   }),
 });
 
+const updateBloodStockSchema = {
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid blood stock ObjectId",
+      ),
+  }),
+
+  body: z
+    .object({
+      quantity: z.coerce.number().min(1).optional(),
+      notes: z.string().trim().max(500).optional(),
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      error: "At least one field must be provided for update",
+    }),
+};
+
 export {
   createBloodStockSchema,
   getBloodStockSchema,
@@ -178,4 +198,5 @@ export {
   separateComponentsSchema,
   getAvailableBloodStockSchema,
   getBloodStockStatsSchema,
+  updateBloodStockSchema,
 };
