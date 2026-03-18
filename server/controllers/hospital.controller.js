@@ -74,7 +74,9 @@ export const getPendingHospitals = asyncHandler(async (req, res) => {
     Hospital.countDocuments(filter),
   ]);
 
-  if (page > Math.ceil(total / limit) && total > 0) {
+  const totalPages = Math.ceil(total / limit);
+
+  if (page > totalPages && total > 0) {
     throw new ApiError(404, "This page does not exists");
   }
 
@@ -85,7 +87,7 @@ export const getPendingHospitals = asyncHandler(async (req, res) => {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages,
         currentPage: page,
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1,
