@@ -73,10 +73,15 @@ const bloodStockSchema = new mongoose.Schema(
 
 bloodStockSchema.index({
   hospital: 1,
+  status: 1,
   bloodGroup: 1,
   componentType: 1,
-  status: 1,
+  createdAt: -1,
+  expiryDate: 1,
 });
-bloodStockSchema.index({ expiryDate: 1 });
+
+bloodStockSchema.index({ expiryDate: 1, status: 1 });
+
+bloodStockSchema.index({ _id: 1, status: 1, hospital: 1 });
 
 export default mongoose.model("BloodStock", bloodStockSchema);
