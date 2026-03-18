@@ -7,6 +7,7 @@ import userRoutes from "./routes/user.routes.js";
 import hospitalRoutes from "./routes/hospital.routes.js";
 import donationRoutes from "./routes/donation.routes.js";
 import bloodStockRoutes from "./routes/bloodStock.routes.js";
+import requestRoutes from "./routes/request.routes.js";
 
 config();
 const app = express();
@@ -25,6 +26,7 @@ app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/hospital", hospitalRoutes);
 app.use("/api/v1/donation", donationRoutes);
 app.use("/api/v1/bloodstock", bloodStockRoutes);
+app.use("/api/v1/request", requestRoutes);
 
 app.use(notFound);
 
