@@ -58,4 +58,15 @@ const getMyRequestsSchema = {
   }),
 };
 
-export { createRequestSchema, getMyRequestsSchema };
+const getRequestByIdSchema = {
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid request ObjectId",
+      ),
+  }),
+};
+
+export { createRequestSchema, getMyRequestsSchema, getRequestByIdSchema };
