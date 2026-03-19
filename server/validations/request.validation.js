@@ -31,4 +31,31 @@ const createRequestSchema = {
   }),
 };
 
-export { createRequestSchema };
+const getMyRequestsSchema = {
+  query: z.object({
+    status: z
+      .enum([
+        "Pending", // waiting admin review
+        "Approved", // approved, stock reserved
+        "Rejected", // denied
+        "Awaiting Donor", // no stock, donor alert sent
+        "Transfer Required", // stock in other center
+        "Ready for Issue", // blood prepared
+        "Completed", // blood issued
+        "Cancelled",
+      ])
+      .optional(),
+
+    page: z.coerce.number().min(1).default(1),
+
+    limit: z.coerce.number().min(1).max(50).default(10),
+
+    sortBy: z
+      .enum(["createdAt", "requiredDate", "urgency"])
+      .default("createdAt"),
+
+    sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  }),
+};
+
+export { createRequestSchema, getMyRequestsSchema };
