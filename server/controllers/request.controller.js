@@ -113,3 +113,26 @@ export const getMyRequests = asyncHandler(async (req, res) => {
     }),
   );
 });
+
+export const getMyRequestById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const patientId = req.user._id;
+
+  const request = await Request.findOne({
+    _id: id,
+    patient: patientId,
+  })
+    .populate("hospital", "name type address location phone")
+    .populate("bloodUnits", "bloodGroup componentType status expiryDate")
+    .populate("transfer")
+    .lean();
+
+  if (!request) {
+    throw new ApiError(404, "Request not found");
+  }
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, "Request details fetched successfully", request),
+    );
+});

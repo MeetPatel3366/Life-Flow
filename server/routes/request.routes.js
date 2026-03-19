@@ -4,9 +4,11 @@ import { validate } from "../middlewares/validate.middleware.js";
 import {
   createRequestSchema,
   getMyRequestsSchema,
+  getRequestByIdSchema,
 } from "../validations/request.validation.js";
 import {
   createRequest,
+  getMyRequestById,
   getMyRequests,
 } from "../controllers/request.controller.js";
 
@@ -26,6 +28,14 @@ router.get(
   authorizeRoles("patient"),
   validate(getMyRequestsSchema),
   getMyRequests,
+);
+
+router.get(
+  "/:id/my",
+  verifyJWT,
+  authorizeRoles("patient"),
+  validate(getRequestByIdSchema),
+  getMyRequestById,
 );
 
 export default router;
