@@ -3,6 +3,8 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import Hospital from "../models/hospital.model.js";
 import Request from "../models/request.model.js";
+import BloodStock from "../models/bloodStock.model.js";
+import Transfer from "../models/transfer.model.js";
 
 export const createRequest = asyncHandler(async (req, res) => {
   const patientId = req.user._id;
@@ -68,4 +70,46 @@ export const createRequest = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(201, "Blood request submitted successfully", newRequest),
     );
+});
+
+export const getMyRequests = asyncHandler(async (req, res) => {
+  const patientId = req.user._id;
+
+  const { status, page, limit, sortBy, sortOrder } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const filter = {
+    patient: patientId,
+  };
+
+  if (status) {
+    filter.status = status;
+  }
+
+  const sort = {
+    [sortBy]: sortOrder === "asc" ? 1 : -1,
+  };
+
+  const [requests, totalCount] = await Promise.all([
+    Request.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+
+    Request.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limit);
+
+  return res.status(200).json(
+    new ApiResponse(200, "Patient request history fetched successfully", {
+      requests,
+      pagination: {
+        totalCount,
+        totalPages,
+        currentPage: page,
+        limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    }),
+  );
 });
