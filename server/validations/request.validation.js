@@ -69,4 +69,20 @@ const getRequestByIdSchema = {
   }),
 };
 
-export { createRequestSchema, getMyRequestsSchema, getRequestByIdSchema };
+const cancelRequestSchema = {
+  params: z.object({
+    id: z
+      .string()
+      .refine(
+        (val) => mongoose.Types.ObjectId.isValid(val),
+        "Invalid request ObjectId",
+      ),
+  }),
+};
+
+export {
+  createRequestSchema,
+  getMyRequestsSchema,
+  getRequestByIdSchema,
+  cancelRequestSchema,
+};
