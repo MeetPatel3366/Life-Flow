@@ -3,8 +3,6 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import Hospital from "../models/hospital.model.js";
 import Request from "../models/request.model.js";
-import BloodStock from "../models/bloodStock.model.js";
-import Transfer from "../models/transfer.model.js";
 
 export const createRequest = asyncHandler(async (req, res) => {
   const patientId = req.user._id;
@@ -135,4 +133,41 @@ export const getMyRequestById = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(200, "Request details fetched successfully", request),
     );
+});
+
+export const cancelRequest = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const patientId = req.user._id;
+
+  const request = await Request.findOneAndUpdate(
+    {
+      _id: id,
+      patient: patientId,
+      status: "Pending",
+    },
+    {
+      $set: { status: "Cancelled" },
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  ).lean();
+
+  if (!request) {
+    const existingRequest = await Request.exists({
+      _id: id,
+      patient: patientId,
+    });
+
+    if (!existingRequest) {
+      throw new ApiError(404, "Request not found or unauthorized");
+    }
+
+    throw new ApiError(400, "Only pending requests can be cancelled");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Request cancelled successfully", request));
 });
