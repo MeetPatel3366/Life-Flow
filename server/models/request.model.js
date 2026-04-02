@@ -66,6 +66,27 @@ const requestSchema = new mongoose.Schema(
     rejectionReason: {
       type: String,
     },
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    rejectedAt: {
+      type: Date,
+    },
+    readyBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    readyAt: {
+      type: Date,
+    },
+    completedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    completedAt: {
+      type: Date,
+    },
     bloodUnits: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -84,7 +105,16 @@ const requestSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+requestSchema.index({ patient: 1, createdAt: -1 });
+
+requestSchema.index({ patient: 1, status: 1 });
+
+requestSchema.index({ _id: 1, hospital: 1 });
+
 requestSchema.index({ hospital: 1, status: 1 });
+
 requestSchema.index({ bloodGroup: 1, componentType: 1 });
+
+requestSchema.index({ createdAt: -1 });
 
 export default mongoose.model("Request", requestSchema);
