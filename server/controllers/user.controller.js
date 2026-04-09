@@ -1,4 +1,5 @@
 import User from "../models/user.model.js";
+import OauthAccount from "../models/oauthAccount.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import crypto from "crypto";
@@ -6,6 +7,7 @@ import nodemailer from "nodemailer";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import jwt from "jsonwebtoken";
 import handleFileUpload from "../utils/handleFileUpload.js";
+import { OAuth2Client } from "google-auth-library";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -570,5 +572,148 @@ export const resetPassword = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse("Password reset successful. you can now login"));
+    .json(new ApiResponse(200, "Password reset successful. You can now login"));
+});
+
+export const googleLogin = asyncHandler(async (req, res) => {
+  const { credential, role } = req.body;
+
+  if (!credential) {
+    throw new ApiError(400, "Google credential is required");
+  }
+
+  const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+  let ticket;
+  try {
+    ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+  } catch {
+    throw new ApiError(401, "Invalid Google credential");
+  }
+
+  const payload = ticket.getPayload();
+  const { sub: googleId, email, name, picture } = payload;
+
+  if (!email) {
+    throw new ApiError(400, "Google account email not available");
+  }
+
+  const existingOauth = await OauthAccount.findOne({
+    provider: "google",
+    providerAccountId: googleId,
+  }).lean();
+
+  if (existingOauth) {
+    const user = await User.findById(existingOauth.userId);
+
+    if (!user) {
+      throw new ApiError(404, "User account not found");
+    }
+
+    if (!user.isActive) {
+      throw new ApiError(403, "Your account has been deactivated");
+    }
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+      user._id,
+    );
+
+    const loggedInUser = await User.findById(user._id).select(
+      "-password -refreshToken -otp -otpExpiry",
+    );
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    };
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, {
+        ...cookieOptions,
+        maxAge: 15 * 60 * 1000,
+      })
+      .cookie("refreshToken", refreshToken, {
+        ...cookieOptions,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      })
+      .json(
+        new ApiResponse(200, "Google login successful", {
+          user: loggedInUser,
+          accessToken,
+          refreshToken,
+        }),
+      );
+  }
+
+  let user = await User.findOne({ email });
+
+  if (user && !user.isOAuthUser) {
+    await OauthAccount.create({
+      userId: user._id,
+      provider: "google",
+      providerAccountId: googleId,
+    });
+
+    user.isOAuthUser = true;
+    if (picture && !user.profileImage?.secure_url) {
+      user.profileImage = { secure_url: picture, public_id: "" };
+    }
+    await user.save({ validateBeforeSave: false });
+  } else if (!user) {
+    const selectedRole = ["donor", "patient"].includes(role) ? role : "donor";
+
+    user = await User.create({
+      name: name || email.split("@")[0],
+      email,
+      isOAuthUser: true,
+      role: selectedRole,
+      isVerified: true,
+      isActive: true,
+      profileImage: picture ? { secure_url: picture, public_id: "" } : undefined,
+    });
+
+    await OauthAccount.create({
+      userId: user._id,
+      provider: "google",
+      providerAccountId: googleId,
+    });
+  }
+
+  const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+    user._id,
+  );
+
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken -otp -otpExpiry",
+  );
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
+    })
+    .cookie("refreshToken", refreshToken, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    })
+    .json(
+      new ApiResponse(200, "Google login successful", {
+        user: loggedInUser,
+        accessToken,
+        refreshToken,
+        isNewUser: !existingOauth,
+      }),
+    );
 });

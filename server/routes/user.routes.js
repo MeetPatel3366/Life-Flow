@@ -14,6 +14,7 @@ import {
   changeCurrentPassword,
   forgotPassword,
   getCurrentUser,
+  googleLogin,
   login,
   logout,
   refreshAccessToken,
@@ -36,6 +37,8 @@ router.post("/verify-otp", validate({ body: verifyOtpSchema }), verifyOtp);
 router.post("/resend-otp", validate({ body: resendOtpSchema }), resendOtp);
 
 router.post("/login", validate({ body: loginSchema }), login);
+
+router.post("/google-login", googleLogin);
 
 router.post("/logout", verifyJWT, logout);
 
