@@ -58,7 +58,7 @@ export const createDonation = asyncHandler(async (req, res) => {
 
     return res
       .status(201)
-      .json(new ApiResponse(201, donation, "Donation scheduled successfully"));
+      .json(new ApiResponse(201, "Donation scheduled successfully", donation));
   } catch (error) {
     if (error.code === 11000) {
       throw new ApiError(400, "You already have an active donation booking");
@@ -100,6 +100,7 @@ export const getMyDonations = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(
       200,
+      "Donations fetched successfully",
       {
         donations,
         pagination: {
@@ -111,7 +112,6 @@ export const getMyDonations = asyncHandler(async (req, res) => {
           hasPrevPage: page > 1,
         },
       },
-      "Donations fetched successfully",
     ),
   );
 });
@@ -160,7 +160,7 @@ export const cancelDonation = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, donation, "Donation cancelled successfully"));
+    .json(new ApiResponse(200, "Donation cancelled successfully", donation));
 });
 
 export const getHospitalDonations = asyncHandler(async (req, res) => {
@@ -215,6 +215,7 @@ export const getHospitalDonations = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(
       200,
+      "Hospital donations fetched successfully",
       {
         donations,
         pagination: {
@@ -226,7 +227,6 @@ export const getHospitalDonations = asyncHandler(async (req, res) => {
           hasPrevPage: page > 1,
         },
       },
-      "Hospital donations fetched successfully",
     ),
   );
 });
@@ -257,7 +257,7 @@ export const getDonationById = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, donation, "Donation fetched successfully"));
+    .json(new ApiResponse(200, "Donation fetched successfully", donation));
 });
 
 export const updateScreening = asyncHandler(async (req, res) => {
@@ -341,10 +341,10 @@ export const updateScreening = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        donation,
         passed
           ? "Screening completed successfully"
           : "Donation deferred after screening",
+        donation,
       ),
     );
 });
@@ -426,8 +426,8 @@ export const completeDonation = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        updateDonation,
         "Donaton completed and donor eligibility updated",
+        updateDonation,
       ),
     );
 });
@@ -507,10 +507,10 @@ export const updateLabTests = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        updatedDonation,
         hasPositive
           ? "Lab tests updated. Donation marked as deferred due to positive result."
           : "Lab tests updated successfully. Donation is safe.",
+        updatedDonation,
       ),
     );
 });
@@ -557,6 +557,7 @@ export const getDonationsByHospital = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(
       200,
+      "Hospital donations fetched successfully",
       {
         donations,
         pagination: {
@@ -568,7 +569,6 @@ export const getDonationsByHospital = asyncHandler(async (req, res) => {
           hasPrevPage: page > 1,
         },
       },
-      "Hospital donations fetched successfully",
     ),
   );
 });
@@ -620,7 +620,7 @@ export const rescheduleDonation = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(
-      new ApiResponse(200, updateDonation, "Donation rescheduled successfully"),
+      new ApiResponse(200, "Donation rescheduled successfully", updateDonation),
     );
 });
 
