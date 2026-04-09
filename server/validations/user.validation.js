@@ -26,7 +26,8 @@ const registerSchema = z
     }),
     bloodGroup: z
       .enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])
-      .optional(),
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
     age: z
       .number()
       .min(18, "Minimum age is 18")
