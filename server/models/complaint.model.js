@@ -79,4 +79,8 @@ const complaintSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+complaintSchema.index({ raisedBy: 1, createdAt: -1 });
+complaintSchema.index({ hospital: 1, status: 1 });
+complaintSchema.index({ status: 1, createdAt: -1 });
+
 export default mongoose.model("Complaint", complaintSchema);
