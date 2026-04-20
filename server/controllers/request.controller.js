@@ -5,6 +5,11 @@ import Hospital from "../models/hospital.model.js";
 import Request from "../models/request.model.js";
 import BloodStock from "../models/bloodStock.model.js";
 import Transfer from "../models/transfer.model.js";
+import {
+  notifyPatient,
+  notifyHospital,
+  notifyDonors,
+} from "../utils/notification.service.js";
 
 export const createRequest = asyncHandler(async (req, res) => {
   const patientId = req.user._id;
@@ -330,6 +335,15 @@ export const approveRequest = asyncHandler(async (req, res) => {
 
     await request.save();
 
+    notifyPatient(
+      request.patient,
+      "request_approved",
+      "Blood Request Approved",
+      `Your blood request for ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType} has been approved and reserved.`,
+      "Request",
+      request._id,
+    );
+
     return res
       .status(200)
       .json(
@@ -369,6 +383,24 @@ export const approveRequest = asyncHandler(async (req, res) => {
 
     await request.save();
 
+    notifyPatient(
+      request.patient,
+      "transfer_created",
+      "Transfer Initiated",
+      `Your blood request requires a transfer from another hospital. We are working on it.`,
+      "Request",
+      request._id,
+    );
+
+    notifyHospital(
+      otherStock[0].hospital,
+      "transfer_created",
+      "Transfer Request Received",
+      `A transfer request has been created for ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType}.`,
+      "Transfer",
+      transfer._id,
+    ).catch(() => {});
+
     return res
       .status(200)
       .json(
@@ -386,12 +418,30 @@ export const approveRequest = asyncHandler(async (req, res) => {
 
   await request.save();
 
+  notifyPatient(
+    request.patient,
+    "request_awaiting_donor",
+    "Awaiting Donor",
+    `No stock is currently available for your request. Eligible donors have been alerted.`,
+    "Request",
+    request._id,
+  );
+
+  notifyDonors(
+    request.bloodGroup,
+    "donor_alert",
+    "Urgent Blood Needed",
+    `A patient urgently needs ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType}. Please consider donating.`,
+    "Request",
+    request._id,
+  ).catch(() => {});
+
   return res
     .status(200)
     .json(
       new ApiResponse(
         200,
-        "No stock avavilable. Request moved to donor aleret stage",
+        "No stock available. Request moved to donor alert stage",
       ),
     );
 });
@@ -425,6 +475,15 @@ export const rejectRequest = asyncHandler(async (req, res) => {
   request.rejectedAt = new Date();
 
   await request.save();
+
+  notifyPatient(
+    request.patient,
+    "request_rejected",
+    "Blood Request Rejected",
+    `Your blood request has been rejected. Reason: ${reason}`,
+    "Request",
+    request._id,
+  );
 
   return res
     .status(200)
@@ -462,6 +521,15 @@ export const markRequestReady = asyncHandler(async (req, res) => {
   request.readyAt = new Date();
 
   await request.save();
+
+  notifyPatient(
+    request.patient,
+    "request_ready",
+    "Blood Ready for Pickup",
+    `Your blood units are prepared and ready for issue. Please visit the hospital.`,
+    "Request",
+    request._id,
+  );
 
   return res
     .status(200)
@@ -521,6 +589,15 @@ export const completeRequest = asyncHandler(async (req, res) => {
       },
     },
     { new: true },
+  );
+
+  notifyPatient(
+    request.patient,
+    "request_completed",
+    "Blood Issued Successfully",
+    `Your blood request has been completed. Blood units have been issued.`,
+    "Request",
+    request._id,
   );
 
   return res
