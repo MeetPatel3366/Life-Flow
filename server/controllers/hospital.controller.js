@@ -44,8 +44,8 @@ export const registerHospital = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         201,
-        newHospital,
         "Hospital registered successfully. Awaiting admin approval.",
+        newHospital,
       ),
     );
 });
@@ -138,12 +138,12 @@ export const approveHospital = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(
       200,
+      "Hospital approved successfully",
       {
         hospitalId: hospital._id,
         verificationStatus: hospital.verificationStatus,
         verifiedAt: hospital.verifiedAt,
       },
-      "Hospital approved successfully",
     ),
   );
 });
@@ -193,13 +193,13 @@ export const rejectHospital = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(
       200,
+      "Hospital rejected successfully",
       {
         hospitalId: hospital._id,
         verificationStatus: hospital.verificationStatus,
         rejectedAt: hospital.rejectedAt,
         rejectionReason: hospital.rejectionReason,
       },
-      "Hospital rejected successfully",
     ),
   );
 });
@@ -228,7 +228,7 @@ export const getHospitals = asyncHandler(async (req, res) => {
 
   const [hospitals, totalCount] = await Promise.all([
     Hospital.find(filter)
-      .select("name phone verificationStatus isActive address createdAt")
+      .select("name phone verificationStatus isActive address storageCapacity hasComponentSeparation contactPerson licenseNumber licenseDocument createdAt")
       .sort({ [sortBy]: sortOrder })
       .skip(skip)
       .limit(limit)
@@ -242,6 +242,7 @@ export const getHospitals = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(
       200,
+      "Hospitals fetched successfully",
       {
         hospitals,
         pagination: {
@@ -253,7 +254,6 @@ export const getHospitals = asyncHandler(async (req, res) => {
           limit,
         },
       },
-      "Hospitals fetched successfully",
     ),
   );
 });
@@ -286,8 +286,8 @@ export const getHospitalById = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        processedHospital,
         "Hospital details fetched successfully",
+        processedHospital,
       ),
     );
 });
@@ -320,8 +320,8 @@ export const getMyHospitalProfile = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        hospitalProfile,
         "Hospital profile fetched successfully",
+        hospitalProfile,
       ),
     );
 });
@@ -399,7 +399,7 @@ export const updateMyHospitalProfile = asyncHandler(async (req, res) => {
 
   const result = updatedHospital.toObject({ versionKey: false });
 
-  return res.status(200).json(new ApiResponse(200, result, message));
+  return res.status(200).json(new ApiResponse(200, message, result));
 });
 
 export const getNearbyHospitals = asyncHandler(async (req, res) => {
@@ -453,6 +453,7 @@ export const getNearbyHospitals = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(
       200,
+      "Nearby hospitals fetched successfully",
       {
         hospitals,
         pagination: {
@@ -464,7 +465,6 @@ export const getNearbyHospitals = asyncHandler(async (req, res) => {
           hasPrevPage: page > 1,
         },
       },
-      "Nearby hospitals fetched successfully",
     ),
   );
 });
