@@ -31,7 +31,6 @@ const requestSchema = new mongoose.Schema(
       type: String,
       enum: [
         "Normal", //Planned need
-        "Urgent", //Needed soon
         "Emergency", //Accident, ICU bleeding
       ],
       default: "Normal",
@@ -45,7 +44,7 @@ const requestSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
-        "Pending", // waiting admin review
+        "Pending", // waiting hospital review
         "Approved", // approved, stock reserved
         "Rejected", // denied
         "Awaiting Donor", // no stock, donor alert sent
@@ -100,6 +99,13 @@ const requestSchema = new mongoose.Schema(
     notes: {
       type: String,
       trim: true,
+    },
+    donorSearchFailed: {
+      type: Boolean,
+      default: false,
+    },
+    emergencyEscalatedAt: {
+      type: Date,
     },
   },
   { timestamps: true },

@@ -23,6 +23,11 @@ const transferSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Request",
     },
+    priority: {
+      type: String,
+      enum: ["Normal", "Emergency"],
+      default: "Normal",
+    },
     transportMode: {
       type: String,
       enum: ["Ambulance", "Courier", "Cold Chain Vehicle"],
@@ -33,7 +38,7 @@ const transferSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
-        "Pending Approval", // admin reviewing
+        "Pending Approval", // hospital user reviewing
         "Approved", // ready for dispatch
         "Dispatched", // left source hospital
         "In Transit", // on the way

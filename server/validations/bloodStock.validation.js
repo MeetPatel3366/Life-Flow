@@ -28,6 +28,7 @@ const getBloodStockSchema = {
       .optional(),
     status: z
       .enum([
+        "Testing",
         "Available",
         "Reserved",
         "In Transit",

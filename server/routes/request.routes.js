@@ -67,7 +67,7 @@ router.get(
   getAllRequests,
 );
 
-router.get("/stats", verifyJWT, authorizeRoles("admin"), getRequestStats);
+router.get("/stats", verifyJWT, authorizeRoles("admin", "hospital"), getRequestStats);
 
 router.get(
   "/:id/my",
@@ -80,7 +80,7 @@ router.get(
 router.get(
   "/:id",
   verifyJWT,
-  authorizeRoles("hospital"),
+  authorizeRoles("hospital", "admin"),
   validate(getRequestByIdSchema),
   getRequestByIdForHospital,
 );

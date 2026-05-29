@@ -9,7 +9,11 @@ import {
   notifyPatient,
   notifyHospital,
   notifyDonors,
+  notifyAdmin,
+  emitEmergencyAlert,
+  notifyEscalation,
 } from "../utils/notification.service.js";
+import mongoose from "mongoose";
 
 export const createRequest = asyncHandler(async (req, res) => {
   const patientId = req.user._id;
@@ -53,7 +57,13 @@ export const createRequest = asyncHandler(async (req, res) => {
     );
   }
 
-  if (requiredDate && new Date(requiredDate) < new Date()) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); 
+
+  const inputDate = new Date(requiredDate);
+  inputDate.setHours(0, 0, 0, 0);
+
+  if (requiredDate && inputDate < today) {
     throw new ApiError(400, "Required date cannot be in the past");
   }
 
@@ -69,6 +79,44 @@ export const createRequest = asyncHandler(async (req, res) => {
     notes,
     status: "Pending",
   });
+
+  if (urgency === "Emergency") {
+    emitEmergencyAlert("emergency_request_created", {
+      requestId: newRequest._id,
+      bloodGroup,
+      units: unitsRequired,
+      hospital: hospitalId,
+      urgency: "Emergency"
+    });
+
+    await handleStockAllocation(newRequest, patientId, hospitalId);
+  }
+
+  notifyPatient(
+    patientId,
+    "request_created",
+    "Blood Request Submitted",
+    `Your request for ${unitsRequired} unit(s) of ${bloodGroup} ${componentType} is now Pending.`,
+    "Request",
+    newRequest._id
+  );
+
+  notifyHospital(
+    hospitalId,
+    "request_created",
+    "New Blood Request",
+    `A new blood request for ${unitsRequired} unit(s) of ${bloodGroup} ${componentType} has been submitted.`,
+    "Request",
+    newRequest._id
+  );
+
+  notifyAdmin(
+    "request_created",
+    "New Blood Request",
+    `A new blood request for ${unitsRequired} unit(s) of ${bloodGroup} ${componentType} has been submitted to hospital.`,
+    "Request",
+    newRequest._id
+  );
 
   return res
     .status(201)
@@ -92,13 +140,30 @@ export const getMyRequests = asyncHandler(async (req, res) => {
     filter.status = status;
   }
 
-  const sort = {
-    [sortBy]: sortOrder === "asc" ? 1 : -1,
-  };
+  const aggregatePipeline = [
+    { $match: filter },
+    {
+      $addFields: {
+        sortPriority: {
+          $cond: {
+            if: { $eq: ["$status", "Pending"] },
+            then: {
+              $cond: { if: { $eq: ["$urgency", "Emergency"] }, then: 1, else: 2 },
+            },
+            else: {
+              $cond: { if: { $eq: ["$urgency", "Emergency"] }, then: 3, else: 4 },
+            },
+          },
+        },
+      },
+    },
+    { $sort: { sortPriority: 1, createdAt: -1 } },
+    { $skip: skip },
+    { $limit: parseInt(limit) },
+  ];
 
   const [requests, totalCount] = await Promise.all([
-    Request.find(filter).sort(sort).skip(skip).limit(limit).lean(),
-
+    Request.aggregate(aggregatePipeline),
     Request.countDocuments(filter),
   ]);
 
@@ -192,7 +257,7 @@ export const getHospitalRequests = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Hospital not found");
   }
 
-  const { status, urgency, bloodGroup, page, limit, sortBy, sortOrder } =
+  const { status, urgency, bloodGroup, search, page, limit, sortBy, sortOrder } =
     req.query;
 
   const skip = (page - 1) * limit;
@@ -213,18 +278,41 @@ export const getHospitalRequests = asyncHandler(async (req, res) => {
     filter.bloodGroup = bloodGroup;
   }
 
-  const sort = {
-    [sortBy]: sortOrder === "asc" ? 1 : -1,
-  };
+  if (search) {
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const patientIds = await mongoose.model("User").find({
+      name: { $regex: escapedSearch, $options: "i" },
+      role: "patient"
+    }).distinct("_id");
+    filter.patient = { $in: patientIds };
+  }
+
+  const aggregatePipeline = [
+    { $match: filter },
+    {
+      $addFields: {
+        sortPriority: {
+          $cond: {
+            if: { $eq: ["$status", "Pending"] },
+            then: {
+              $cond: { if: { $eq: ["$urgency", "Emergency"] }, then: 1, else: 2 },
+            },
+            else: {
+              $cond: { if: { $eq: ["$urgency", "Emergency"] }, then: 3, else: 4 },
+            },
+          },
+        },
+      },
+    },
+    { $sort: { sortPriority: 1, createdAt: -1 } },
+    { $skip: skip },
+    { $limit: parseInt(limit) },
+  ];
 
   const [requests, totalCount] = await Promise.all([
-    Request.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .populate("patient", "name email phone")
-      .lean(),
-
+    Request.aggregate(aggregatePipeline).then((results) =>
+      Request.populate(results, { path: "patient", select: "name email phone" }),
+    ),
     Request.countDocuments(filter),
   ]);
 
@@ -250,10 +338,12 @@ export const getRequestByIdForHospital = asyncHandler(async (req, res) => {
 
   const hospitalId = req.user.hospitalId;
 
-  const request = await Request.findOne({
-    _id: id,
-    hospital: hospitalId,
-  })
+  const filter = { _id: id };
+  if (req.user.role !== "admin") {
+    filter.hospital = req.user.hospitalId;
+  }
+
+  const request = await Request.findOne(filter)
     .populate({
       path: "patient",
       select: "name email phone",
@@ -264,8 +354,12 @@ export const getRequestByIdForHospital = asyncHandler(async (req, res) => {
     })
     .populate({
       path: "transfer",
-      select: "status fromHospital toHospital dispatchDate deliveryDate",
+      populate: [
+        { path: "fromHospital", select: "name phone" },
+        { path: "toHospital", select: "name phone" }
+      ]
     })
+    .populate("hospital", "name")
     .lean();
 
   if (!request) {
@@ -287,163 +381,22 @@ export const approveRequest = asyncHandler(async (req, res) => {
   const request = await Request.findOne({
     _id: id,
     hospital: hospitalId,
-  });
+  }).populate("hospital", "name");
 
   if (!request) {
     throw new ApiError(404, "Request not found");
   }
 
-  if (request.status !== "Pending") {
+  if (!["Pending", "Awaiting Donor"].includes(request.status)) {
     throw new ApiError(
       400,
       `Request cannot be approved when status is '${request.status}'`,
     );
   }
 
-  const now = new Date();
+  const result = await handleStockAllocation(request, userId, hospitalId);
 
-  //case 1: check stock in same hospital
-
-  const localStock = await BloodStock.find({
-    hospital: hospitalId,
-    bloodGroup: request.bloodGroup,
-    componentType: request.componentType,
-    status: "Available",
-    expiryDate: { $gt: now },
-  })
-    .sort({ expiryDate: 1 })
-    .limit(request.unitsRequired)
-    .lean();
-
-  if (localStock.length >= request.unitsRequired) {
-    const stockIds = localStock.map((s) => s._id);
-
-    await BloodStock.updateMany(
-      { _id: { $in: stockIds } },
-      {
-        $set: {
-          status: "Reserved",
-          request: request._id,
-        },
-      },
-    );
-
-    request.status = "Approved";
-    request.bloodUnits = stockIds;
-    request.approvedBy = userId;
-    request.approvalDate = now;
-
-    await request.save();
-
-    notifyPatient(
-      request.patient,
-      "request_approved",
-      "Blood Request Approved",
-      `Your blood request for ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType} has been approved and reserved.`,
-      "Request",
-      request._id,
-    );
-
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(200, "Request approved and blood reserved", request),
-      );
-  }
-
-  //case 2 : check stock in other hospitals
-
-  const otherStock = await BloodStock.find({
-    hospital: { $ne: hospitalId },
-    bloodGroup: request.bloodGroup,
-    componentType: request.componentType,
-    status: "Available",
-    expiryDate: { $gt: now },
-  })
-    .limit(request.unitsRequired)
-    .lean();
-
-  if (otherStock.length >= request.unitsRequired) {
-    const stockIds = otherStock
-      .slice(0, request.unitsRequired)
-      .map((s) => s._id);
-
-    const transfer = await Transfer.create({
-      fromHospital: otherStock[0].hospital,
-      toHospital: hospitalId,
-      bloodUnits: stockIds,
-      request: request._id,
-      status: "Pending Approval",
-    });
-
-    request.status = "Transfer Required";
-    request.transfer = transfer._id;
-    request.approvedBy = userId;
-    request.approvalDate = now;
-
-    await request.save();
-
-    notifyPatient(
-      request.patient,
-      "transfer_created",
-      "Transfer Initiated",
-      `Your blood request requires a transfer from another hospital. We are working on it.`,
-      "Request",
-      request._id,
-    );
-
-    notifyHospital(
-      otherStock[0].hospital,
-      "transfer_created",
-      "Transfer Request Received",
-      `A transfer request has been created for ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType}.`,
-      "Transfer",
-      transfer._id,
-    ).catch(() => {});
-
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(
-          200,
-          "Stock unavailable locally. Transfer request created",
-        ),
-      );
-  }
-
-  //case 3: no stock anywhere
-  request.status = "Awaiting Donor";
-  request.approvedBy = userId;
-  request.approvalDate = now;
-
-  await request.save();
-
-  notifyPatient(
-    request.patient,
-    "request_awaiting_donor",
-    "Awaiting Donor",
-    `No stock is currently available for your request. Eligible donors have been alerted.`,
-    "Request",
-    request._id,
-  );
-
-  notifyDonors(
-    request.bloodGroup,
-    "donor_alert",
-    "Urgent Blood Needed",
-    `A patient urgently needs ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType}. Please consider donating.`,
-    "Request",
-    request._id,
-  ).catch(() => {});
-
-  return res
-    .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        "No stock available. Request moved to donor alert stage",
-      ),
-    );
+  return res.status(200).json(new ApiResponse(200, result.message, request));
 });
 
 export const rejectRequest = asyncHandler(async (req, res) => {
@@ -462,7 +415,7 @@ export const rejectRequest = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Request not found");
   }
 
-  if (request.status !== "Pending") {
+  if (!["Pending", "Awaiting Donor"].includes(request.status)) {
     throw new ApiError(
       400,
       `Request cannot be rejected when status is '${request.status}'`,
@@ -483,6 +436,14 @@ export const rejectRequest = asyncHandler(async (req, res) => {
     `Your blood request has been rejected. Reason: ${reason}`,
     "Request",
     request._id,
+  );
+
+  notifyAdmin(
+    "request_rejected",
+    "Blood Request Rejected",
+    `A blood request for ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType} has been rejected by hospital. Reason: ${reason}`,
+    "Request",
+    request._id
   );
 
   return res
@@ -570,7 +531,7 @@ export const completeRequest = asyncHandler(async (req, res) => {
     {
       _id: { $in: request.bloodUnits },
       hospital: hospitalId,
-      status: "Reserved",
+      status: { $in: ["Reserved", "Available"] },
     },
     {
       $set: {
@@ -652,6 +613,7 @@ export const getAllRequests = asyncHandler(async (req, res) => {
     urgency,
     bloodGroup,
     hospital,
+    search,
     page = 1,
     limit = 10,
     sortBy,
@@ -665,30 +627,49 @@ export const getAllRequests = asyncHandler(async (req, res) => {
   if (bloodGroup) filter.bloodGroup = bloodGroup;
   if (hospital) filter.hospital = hospital;
 
+  if (search) {
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const [patientIds, hospitalIds] = await Promise.all([
+      mongoose.model("User").find({ name: { $regex: escapedSearch, $options: "i" } }).distinct("_id"),
+      mongoose.model("Hospital").find({ name: { $regex: escapedSearch, $options: "i" } }).distinct("_id")
+    ]);
+    filter.$or = [
+      { patient: { $in: patientIds } },
+      { hospital: { $in: hospitalIds } }
+    ];
+  }
+
   const skip = (page - 1) * limit;
 
-  const sort = {
-    [sortBy]: sortOrder === "asc" ? 1 : -1,
-  };
+  const aggregatePipeline = [
+    { $match: filter },
+    {
+      $addFields: {
+        sortPriority: {
+          $cond: {
+            if: { $eq: ["$status", "Pending"] },
+            then: {
+              $cond: { if: { $eq: ["$urgency", "Emergency"] }, then: 1, else: 2 },
+            },
+            else: {
+              $cond: { if: { $eq: ["$urgency", "Emergency"] }, then: 3, else: 4 },
+            },
+          },
+        },
+      },
+    },
+    { $sort: { sortPriority: 1, createdAt: -1 } },
+    { $skip: skip },
+    { $limit: parseInt(limit) },
+  ];
 
   const [requests, total] = await Promise.all([
-    Request.find(
-      filter,
-      "patient hospital bloodGroup componentType unitsRequired urgency status requiredDate createdAt",
-    )
-      .populate({
-        path: "patient",
-        select: "name email phone",
-      })
-      .populate({
-        path: "hospital",
-        select: "name address.city address.state",
-      })
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-
+    Request.aggregate(aggregatePipeline).then((results) =>
+      Request.populate(results, [
+        { path: "patient", select: "name email phone" },
+        { path: "hospital", select: "name address.city address.state" },
+      ]),
+    ),
     Request.countDocuments(filter),
   ]);
 
@@ -709,118 +690,22 @@ export const foreceApproveRequest = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const adminId = req.user._id;
 
-  const request = await Request.findById(
-    id,
-    "hospital bloodGroup componentType unitsRequired status",
-  );
+  const request = await Request.findById(id).populate("hospital", "name");
 
   if (!request) {
     throw new ApiError(404, "Request not found");
   }
 
-  if (request.status !== "Pending") {
+  if (!["Pending", "Awaiting Donor"].includes(request.status)) {
     throw new ApiError(
       400,
       `Request cannot be approved when status is '${request.status}'`,
     );
   }
 
-  const now = new Date();
+  const result = await handleStockAllocation(request, adminId, request.hospital._id);
 
-  const hospitalId = request.hospital;
-
-  //case 1: same hospital stock
-  const localStock = await BloodStock.find(
-    {
-      hospital: hospitalId,
-      bloodGroup: request.bloodGroup,
-      componentType: request.componentType,
-      status: "Available",
-      expiryDate: { $gt: now },
-    },
-    "_id",
-  )
-    .sort({ expiryDate: 1 })
-    .limit(request.unitsRequired)
-    .lean();
-
-  if (localStock.length >= request.unitsRequired) {
-    const stockIds = localStock.map((s) => s._id);
-
-    await BloodStock.updateMany(
-      { _id: { $in: stockIds } },
-      {
-        $set: {
-          status: "Reserved",
-          request: request._id,
-        },
-      },
-    );
-
-    request.status = "Approved";
-    request.bloodUnits = stockIds;
-    request.approvedBy = adminId;
-    request.approvalDate = now;
-
-    await request.save();
-
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(200, "Request force-approved using hospital stock"),
-      );
-  }
-
-  //case 2: stock in other hospitals
-
-  const otherStock = await BloodStock.find(
-    {
-      hospital: hospitalId,
-      bloodGroup: request.bloodGroup,
-      componentType: request.componentType,
-      status: "Available",
-      expiryDate: { $gt: now },
-    },
-    "_id hospital",
-  )
-    .limit(request.unitsRequired)
-    .lean();
-
-  if (otherStock.length >= request.unitsRequired) {
-    const stockIds = otherStock
-      .slice(0, request.unitsRequired)
-      .map((s) => s._id);
-
-    const transfer = await Transfer.create({
-      fromHospital: otherStock[0].hospital,
-      toHospital: hospitalId,
-      bloodUnits: stockIds,
-      request: request._id,
-      status: "Pending Approval",
-    });
-
-    request.status = "Transfer Required";
-    request.transfer = transfer._id;
-    request.approvedBy = adminId;
-    request.approvalDate = now;
-
-    await request.save();
-
-    return res
-      .status(200)
-      .json(new ApiResponse(200, "Request force-approved. Transfer created"));
-  }
-
-  //case 3: No stock anywhere
-  request.status = "Awaiting Donor";
-  request.approvedBy = adminId;
-  request.approvalDate = now;
-
-  await request.save();
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "No stock available. Donor alert required"));
+  return res.status(200).json(new ApiResponse(200, result.message, request));
 });
 
 export const getRequestStats = asyncHandler(async (req, res) => {
@@ -834,7 +719,13 @@ export const getRequestStats = asyncHandler(async (req, res) => {
 
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+  const matchStage = {};
+  if (req.user.role === "hospital") {
+    matchStage.hospital = new mongoose.Types.ObjectId(req.user.hospitalId);
+  }
+
   const stats = await Request.aggregate([
+    { $match: matchStage },
     {
       $facet: {
         totalRequests: [{ $count: "count" }],
@@ -888,3 +779,243 @@ export const getRequestStats = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, "Request stats fetched successfully", response));
 });
+
+export const handleStockAllocation = async (request, userId, hospitalId) => {
+  const now = new Date();
+  const reservedIds = [];
+
+  try {
+    const localStock = await BloodStock.find({
+      hospital: hospitalId,
+      bloodGroup: request.bloodGroup,
+      componentType: request.componentType,
+      status: "Available",
+      expiryDate: { $gt: now },
+    })
+      .sort({ expiryDate: 1 })
+      .limit(request.unitsRequired)
+      .select("_id")
+      .lean();
+
+    if (localStock.length >= request.unitsRequired) {
+      for (const stockUnit of localStock) {
+        const reserved = await BloodStock.findOneAndUpdate(
+          {
+            _id: stockUnit._id,
+            status: "Available",
+            expiryDate: { $gt: now },
+          },
+          {
+            $set: {
+              status: "Reserved",
+              request: request._id,
+            },
+          },
+          { new: true }
+        );
+        if (reserved) {
+          reservedIds.push(reserved._id);
+        }
+      }
+
+      if (reservedIds.length === request.unitsRequired) {
+        request.status = "Approved";
+        request.bloodUnits = reservedIds;
+        request.approvedBy = userId;
+        request.approvalDate = now;
+        await request.save();
+
+        notifyPatient(
+          request.patient,
+          "request_approved",
+          "Blood Request Approved",
+          `Your blood request for ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType} has been approved and reserved.`,
+          "Request",
+          request._id
+        );
+
+        notifyAdmin(
+          "request_approved",
+          "Blood Request Approved",
+          `A blood request for ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType} has been approved and reserved by hospital.`,
+          "Request",
+          request._id
+        );
+
+        return { success: true, message: "Request approved and blood reserved", status: "Approved" };
+      } else {
+        if (reservedIds.length > 0) {
+          await BloodStock.updateMany(
+            { _id: { $in: reservedIds } },
+            { $set: { status: "Available" }, $unset: { request: "" } }
+          );
+          reservedIds.length = 0;
+        }
+      }
+    }
+
+    const otherStock = await BloodStock.find({
+      hospital: { $ne: hospitalId },
+      bloodGroup: request.bloodGroup,
+      componentType: request.componentType,
+      status: "Available",
+      expiryDate: { $gt: now },
+    })
+      .sort({ expiryDate: 1 })
+      .limit(request.unitsRequired)
+      .select("_id hospital")
+      .lean();
+
+    if (otherStock.length >= request.unitsRequired) {
+      const sourceHospitalId = otherStock[0].hospital;
+      const filteredOtherStock = otherStock.filter(s => String(s.hospital) === String(sourceHospitalId));
+
+      if (filteredOtherStock.length >= request.unitsRequired) {
+        for (const stockUnit of filteredOtherStock) {
+          const reserved = await BloodStock.findOneAndUpdate(
+            {
+              _id: stockUnit._id,
+              status: "Available",
+              expiryDate: { $gt: now },
+            },
+            {
+              $set: {
+                status: "Reserved",
+                request: request._id,
+              },
+            },
+            { new: true }
+          );
+          if (reserved) {
+            reservedIds.push(reserved._id);
+          }
+          if (reservedIds.length === request.unitsRequired) break;
+        }
+
+        if (reservedIds.length === request.unitsRequired) {
+          const isEmergency = request.urgency === "Emergency";
+
+          const transfer = await Transfer.create({
+            fromHospital: sourceHospitalId,
+            toHospital: hospitalId,
+            bloodUnits: reservedIds,
+            request: request._id,
+            status: isEmergency ? "Approved" : "Pending Approval",
+            priority: isEmergency ? "Emergency" : "Normal"
+          });
+
+          request.status = "Transfer Required";
+          request.transfer = transfer._id;
+          request.approvedBy = userId;
+          request.approvalDate = now;
+          await request.save();
+
+          if (isEmergency) {
+            emitEmergencyAlert("emergency_transfer_created", {
+              transferId: transfer._id,
+              fromHospital: sourceHospitalId,
+              toHospital: hospitalId,
+              bloodGroup: request.bloodGroup,
+              units: request.unitsRequired,
+              urgency: "Emergency"
+            });
+          }
+
+          notifyPatient(
+            request.patient,
+            "transfer_created",
+            "Transfer Initiated",
+            `Your blood request requires a transfer from another hospital. We are working on it.`,
+            "Request",
+            request._id
+          );
+
+          notifyAdmin(
+            "transfer_created",
+            "Blood Transfer Required",
+            `A blood request for ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType} requires a transfer from another hospital.`,
+            "Request",
+            request._id
+          );
+
+          notifyHospital(
+            sourceHospitalId,
+            "transfer_created",
+            "Transfer Request Received",
+            `A transfer request for ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType} has been received.`,
+            "Transfer",
+            transfer._id
+          ).catch(() => { });
+
+          return { success: true, message: "Transfer request created", status: "Transfer Required", transferId: transfer._id };
+        } else {
+          if (reservedIds.length > 0) {
+            await BloodStock.updateMany(
+              { _id: { $in: reservedIds } },
+              { $set: { status: "Available" }, $unset: { request: "" } }
+            );
+            reservedIds.length = 0;
+          }
+        }
+      }
+    }
+
+    request.status = "Awaiting Donor";
+    request.approvedBy = userId;
+    request.approvalDate = now;
+    await request.save();
+
+    if (request.urgency === "Emergency") {
+      emitEmergencyAlert("emergency_donor_alert", {
+        requestId: request._id,
+        bloodGroup: request.bloodGroup,
+        units: request.unitsRequired,
+        hospital: hospitalId
+      });
+    }
+
+    const matchedDonorCount = await notifyDonors(
+      request.bloodGroup,
+      "donor_alert",
+      "Urgent Blood Needed",
+      `A patient urgently needs ${request.unitsRequired} unit(s) of ${request.bloodGroup} ${request.componentType}. Please consider donating.`,
+      "Request",
+      request._id
+    );
+
+    if (matchedDonorCount === 0) {
+      request.donorSearchFailed = true;
+      request.emergencyEscalatedAt = now;
+      await request.save();
+
+      await notifyEscalation(request, hospitalId);
+
+      return {
+        success: true,
+        message: `No eligible ${request.bloodGroup} donors exist for request #${request._id.toString().slice(-6).toUpperCase()}`,
+        status: "Awaiting Donor",
+        donorSearchFailed: true
+      };
+    } else {
+      notifyPatient(
+        request.patient,
+        "request_awaiting_donor",
+        "Awaiting Donor",
+        `No stock is currently available for your request. Eligible donors have been alerted.`,
+        "Request",
+        request._id
+      );
+    }
+
+    return { success: true, message: "No stock available. Request moved to donor alert stage", status: "Awaiting Donor" };
+
+  } catch (error) {
+    if (reservedIds.length > 0) {
+      await BloodStock.updateMany(
+        { _id: { $in: reservedIds } },
+        { $set: { status: "Available" }, $unset: { request: "" } }
+      );
+    }
+    throw error;
+  }
+};

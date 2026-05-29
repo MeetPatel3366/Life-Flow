@@ -55,7 +55,7 @@ router.get(
 router.get(
   "/stats",
   verifyJWT,
-  authorizeRoles("admin"),
+  authorizeRoles("admin", "hospital"),
   validate(getTransferStatsSchema),
   getTransferStats,
 );
@@ -63,7 +63,7 @@ router.get(
 router.get(
   "/:id",
   verifyJWT,
-  authorizeRoles("hospital"),
+  authorizeRoles("hospital", "admin"),
   validate(getTransferByIdSchema),
   getTransferById,
 );

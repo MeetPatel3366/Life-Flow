@@ -16,10 +16,8 @@ import {
 
 const router = express.Router();
 
-// Public — submit a contact message
 router.post("/", validate(createContactSchema), createContact);
 
-// Admin — get all contact messages
 router.get(
   "/all",
   verifyJWT,
@@ -28,7 +26,6 @@ router.get(
   getAllContacts,
 );
 
-// Admin — get single contact message
 router.get(
   "/:id",
   verifyJWT,
@@ -37,7 +34,6 @@ router.get(
   getContactById,
 );
 
-// Admin — reply to a contact message
 router.post(
   "/:id/reply",
   verifyJWT,

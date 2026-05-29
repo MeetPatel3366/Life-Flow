@@ -4,7 +4,10 @@ import { ApiError } from "../utils/ApiError.js";
 import Hospital from "../models/hospital.model.js";
 import User from "../models/user.model.js";
 import Donation from "../models/donation.model.js";
+import BloodStock from "../models/bloodStock.model.js";
+import Request from "../models/request.model.js";
 import mongoose from "mongoose";
+import { notifyHospital, notifyUser, notifyAdmin } from "../utils/notification.service.js";
 
 export const createDonation = asyncHandler(async (req, res) => {
   const { hospitalId, scheduledDate } = req.body;
@@ -55,6 +58,15 @@ export const createDonation = asyncHandler(async (req, res) => {
       scheduledDate: new Date(scheduledDate),
       status: "Scheduled",
     });
+
+    notifyHospital(
+      hospitalId,
+      "donation_scheduled",
+      "New Donation Appointment",
+      `A new donor has scheduled an appointment for ${donor.bloodGroup} blood donation.`,
+      "Donation",
+      donation._id
+    );
 
     return res
       .status(201)
@@ -161,6 +173,73 @@ export const cancelDonation = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, "Donation cancelled successfully", donation));
+});
+
+export const getAllDonations = asyncHandler(async (req, res) => {
+  const { status, bloodGroup, search, page = 1, limit = 10 } = req.query;
+
+  const pageInt = parseInt(page);
+  const limitInt = parseInt(limit);
+  const skip = (pageInt - 1) * limitInt;
+
+  const filter = {};
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (bloodGroup) {
+    filter.bloodGroup = bloodGroup;
+  }
+
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    const [matchingDonors, matchingHospitals] = await Promise.all([
+      User.find({ name: searchRegex, role: "donor" }).select("_id").lean(),
+      Hospital.find({ name: searchRegex }).select("_id").lean(),
+    ]);
+
+    const donorIds = matchingDonors.map((d) => d._id);
+    const hospitalIds = matchingHospitals.map((h) => h._id);
+
+    filter.$or = [
+      { donor: { $in: donorIds } },
+      { hospital: { $in: hospitalIds } },
+    ];
+  }
+
+  const [donations, totalCount] = await Promise.all([
+    Donation.find(filter)
+      .populate("donor", "name email bloodGroup")
+      .populate("hospital", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitInt)
+      .select("-__v")
+      .lean(),
+
+    Donation.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / limitInt);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      "All donations fetched successfully",
+      {
+        donations,
+        pagination: {
+          totalCount,
+          totalPages,
+          currentPage: pageInt,
+          limit: limitInt,
+          hasNextPage: pageInt < totalPages,
+          hasPrevPage: pageInt > 1,
+        },
+      },
+    ),
+  );
 });
 
 export const getHospitalDonations = asyncHandler(async (req, res) => {
@@ -404,12 +483,28 @@ export const completeDonation = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Associated donor could not be found or updated");
   }
 
+  const expiryDate = new Date(today.getTime() + 35 * 24 * 60 * 60 * 1000); 
+
+  const newStock = await BloodStock.create({
+    hospital: donation.hospital,
+    donation: donation._id,
+    bloodGroup: donorUpdate.bloodGroup,
+    componentType: "Whole Blood",
+    quantity: 1,
+    expiryDate: expiryDate,
+    status: "Testing",
+    screeningPassed: true,
+  });
+
   const updateDonation = await Donation.findOneAndUpdate(
     { _id: id, status: "Screening" },
     {
       $set: {
         status: "Completed",
         donationDate: today,
+      },
+      $push: {
+        bloodUnits: newStock._id,
       },
     },
     { new: true },
@@ -418,15 +513,33 @@ export const completeDonation = asyncHandler(async (req, res) => {
     .lean();
 
   if (!updateDonation) {
+    await BloodStock.findByIdAndDelete(newStock._id);
     throw new ApiError(409, "Donation was already modified by another process");
   }
+
+  notifyUser(
+    donation.donor,
+    "donation_completed",
+    "Blood Donation Completed",
+    "Thank you for donating blood. Your blood stock is now in the testing phase.",
+    "Donation",
+    updateDonation._id
+  );
+
+  notifyAdmin(
+    "donation_completed",
+    "Donation Completed",
+    `A blood donation (${donorUpdate.bloodGroup}) has been completed successfully.`,
+    "Donation",
+    updateDonation._id
+  );
 
   return res
     .status(200)
     .json(
       new ApiResponse(
         200,
-        "Donaton completed and donor eligibility updated",
+        "Donation completed and blood stock added in Testing status successfully",
         updateDonation,
       ),
     );
@@ -502,14 +615,57 @@ export const updateLabTests = asyncHandler(async (req, res) => {
     );
   }
 
+  const stockStatus = hasPositive ? "Discarded" : "Available";
+  await BloodStock.updateMany(
+    { donation: id, status: "Testing" },
+    { $set: { status: stockStatus } }
+  );
+
+  if (stockStatus === "Available") {
+    const populatedDonation = await Donation.findById(id).populate("hospital", "name").lean();
+    
+    notifyHospital(
+      donation.hospital,
+      "stock_available",
+      "Blood Stock Available",
+      "New blood stock from a donation has passed lab testing and is now available.",
+      "Donation",
+      id
+    );
+
+    notifyAdmin(
+      "stock_available",
+      "New Blood Stock Available",
+      `Hospital ${populatedDonation?.hospital?.name || "Unknown"} has new blood stock available after lab testing.`,
+      "Donation",
+      id
+    );
+
+    const awaitingRequests = await Request.find({
+      bloodGroup: populatedDonation.bloodGroup,
+      status: "Awaiting Donor",
+    }).lean();
+
+    if (awaitingRequests.length > 0) {
+      notifyHospital(
+        donation.hospital,
+        "request_fulfillable",
+        "Stock Available for Pending Request",
+        `New stock is available to fulfill one or more 'Awaiting Donor' requests for ${populatedDonation.bloodGroup}.`,
+        "Donation",
+        id
+      ).catch(() => {});
+    }
+  }
+
   return res
     .status(200)
     .json(
       new ApiResponse(
         200,
         hasPositive
-          ? "Lab tests updated. Donation marked as deferred due to positive result."
-          : "Lab tests updated successfully. Donation is safe.",
+          ? "Lab tests updated. Donation deferred and blood stock discarded."
+          : "Lab tests updated successfully. Blood stock is now available.",
         updatedDonation,
       ),
     );
@@ -622,6 +778,70 @@ export const rescheduleDonation = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(200, "Donation rescheduled successfully", updateDonation),
     );
+});
+
+export const checkDonorEligibility = asyncHandler(async (req, res) => {
+  const donorId = req.user._id;
+
+  const activeDonation = await Donation.findOne({
+    donor: donorId,
+    status: { $in: ["Scheduled", "Screening"] },
+  })
+    .select("status scheduledDate hospital")
+    .populate("hospital", "name")
+    .lean();
+
+  if (activeDonation) {
+    return res.status(200).json(
+      new ApiResponse(200, "Donor eligibility checked", {
+        canSchedule: false,
+        reason: "already_scheduled",
+        message: `You already have an active donation (${activeDonation.status}) at ${activeDonation.hospital?.name || "a hospital"}.`,
+        activeDonation: {
+          _id: activeDonation._id,
+          status: activeDonation.status,
+          scheduledDate: activeDonation.scheduledDate,
+          hospitalName: activeDonation.hospital?.name,
+        },
+        nextEligibleDate: null,
+      })
+    );
+  }
+
+  const donor = await User.findById(donorId)
+    .select("lastDonationDate nextEligibleDate")
+    .lean();
+
+  const MIN_DONATION_GAP_DAYS = 90;
+
+  if (donor?.lastDonationDate) {
+    const lastDate = new Date(donor.lastDonationDate);
+    const nextEligible = donor.nextEligibleDate
+      ? new Date(donor.nextEligibleDate)
+      : new Date(lastDate.getTime() + MIN_DONATION_GAP_DAYS * 24 * 60 * 60 * 1000);
+
+    if (new Date() < nextEligible) {
+      return res.status(200).json(
+        new ApiResponse(200, "Donor eligibility checked", {
+          canSchedule: false,
+          reason: "cooldown_period",
+          message: `You can donate again after ${nextEligible.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}.`,
+          activeDonation: null,
+          nextEligibleDate: nextEligible,
+        })
+      );
+    }
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, "Donor eligibility checked", {
+      canSchedule: true,
+      reason: null,
+      message: "You are eligible to schedule a donation.",
+      activeDonation: null,
+      nextEligibleDate: null,
+    })
+  );
 });
 
 export const getDonationStats = asyncHandler(async (req, res) => {

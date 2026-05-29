@@ -81,11 +81,11 @@ const screeningDonationSchema = z.object({
   }),
   body: z
     .object({
-      hemoglobin: z.number().min(5).max(20),
-      bloodPressure: z.string().min(3),
-      weight: z.number().min(50),
-      temperature: z.number().min(30).max(45),
-      pulse: z.number().min(30).max(200),
+      hemoglobin: z.number().min(12, "Min 12").max(20, "Max 20"),
+      bloodPressure: z.string().regex(/^\d{2,3}\/\d{2,3}$/, "Invalid format (e.g., 120/80)"),
+      weight: z.number().min(50, "Min 50kg"),
+      temperature: z.number().min(36, "Min 36°C").max(38, "Max 38°C"),
+      pulse: z.number().min(60, "Min 60 bpm").max(120, "Max 120 bpm"),
       passed: z.boolean(),
       remarks: z.string().trim().optional(),
       deferralReason: z.string().trim().optional(),

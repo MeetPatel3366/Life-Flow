@@ -78,7 +78,7 @@ router.patch(
 router.get(
   "/",
   verifyJWT,
-  authorizeRoles("admin"),
+  authorizeRoles("admin", "patient", "hospital"),
   validate(getHospitalsSchema),
   getHospitals,
 );
@@ -86,7 +86,7 @@ router.get(
 router.get(
   "/:id",
   verifyJWT,
-  authorizeRoles("admin"),
+  authorizeRoles("admin", "patient", "hospital"),
   validate(getHospitalByIdSchema),
   getHospitalById,
 );

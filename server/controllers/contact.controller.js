@@ -4,7 +4,6 @@ import { ApiError } from "../utils/ApiError.js";
 import Contact from "../models/contact.model.js";
 import nodemailer from "nodemailer";
 
-// Public — anyone can submit a contact message
 export const createContact = asyncHandler(async (req, res) => {
   const { name, email, message } = req.body;
 
@@ -21,7 +20,6 @@ export const createContact = asyncHandler(async (req, res) => {
     );
 });
 
-// Admin — list all contact messages with pagination/filtering
 export const getAllContacts = asyncHandler(async (req, res) => {
   const { status, search, page, limit, sortBy, sortOrder } = req.query;
 
@@ -68,7 +66,6 @@ export const getAllContacts = asyncHandler(async (req, res) => {
   );
 });
 
-// Admin — get a single contact message
 export const getContactById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -80,7 +77,6 @@ export const getContactById = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Contact message not found");
   }
 
-  // Mark as Read if currently Unread
   if (contact.status === "Unread") {
     await Contact.findByIdAndUpdate(id, { $set: { status: "Read" } });
     contact.status = "Read";
@@ -93,7 +89,6 @@ export const getContactById = asyncHandler(async (req, res) => {
     );
 });
 
-// Admin — reply to a contact message (sends email)
 export const replyToContact = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { reply } = req.body;
@@ -105,7 +100,6 @@ export const replyToContact = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Contact message not found");
   }
 
-  // Send reply email
   const transporter = nodemailer.createTransport({
     host: process.env.MAILHOST,
     port: parseInt(process.env.MAILPORT, 10),
@@ -152,7 +146,6 @@ export const replyToContact = asyncHandler(async (req, res) => {
 
   await transporter.sendMail(mailOptions);
 
-  // Update contact with reply details
   contact.adminReply = reply;
   contact.status = "Replied";
   contact.repliedAt = new Date();

@@ -15,8 +15,10 @@ import {
 } from "../validations/donation.validation.js";
 import {
   cancelDonation,
+  checkDonorEligibility,
   completeDonation,
   createDonation,
+  getAllDonations,
   getDonationById,
   getDonationsByHospital,
   getDonationStats,
@@ -43,6 +45,20 @@ router.get(
   authorizeRoles("hospital"),
   validate(hospitalDonationQuerySchema),
   getHospitalDonations,
+);
+
+router.get(
+  "/all",
+  verifyJWT,
+  authorizeRoles("admin"),
+  getAllDonations,
+);
+
+router.get(
+  "/eligibility",
+  verifyJWT,
+  authorizeRoles("donor"),
+  checkDonorEligibility,
 );
 
 router.get(

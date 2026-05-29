@@ -84,7 +84,7 @@ const getHospitalRequestsSchema = {
   query: z.object({
     status: z
       .enum([
-        "Pending", // waiting admin review
+        "Pending", // waiting hospital user review
         "Approved", // approved, stock reserved
         "Rejected", // denied
         "Awaiting Donor", // no stock, donor alert sent

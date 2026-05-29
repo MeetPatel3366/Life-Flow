@@ -22,15 +22,17 @@ export const validate = (schema) => (req, res, next) => {
     }
 
     const issues = error.issues || error.errors || [];
+    
+    const parsedErrors = Array.isArray(issues) && issues.length > 0
+      ? issues.map((e) => ({
+          field: Array.isArray(e.path) ? e.path.join(".") : "unknown",
+          message: e.message,
+        }))
+      : [{ message: "Internal Validation Error" }];
 
     return res.status(400).json({
-      errors:
-        Array.isArray(issues) && issues.length > 0
-          ? issues.map((e) => ({
-              field: Array.isArray(e.path) ? e.path.join(".") : "unknown",
-              message: e.message,
-            }))
-          : [{ message: "Internal Validation Error" }],
+      message: parsedErrors.map(e => e.message).join(", "),
+      errors: parsedErrors,
     });
   }
 };

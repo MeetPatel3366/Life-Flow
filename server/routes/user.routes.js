@@ -24,8 +24,10 @@ import {
   updateProfileDetails,
   updateProfileImage,
   verifyOtp,
+  getPublicStats,
 } from "../controllers/user.controller.js";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { getAllUsersAnalyzed, getUserAnalyzedById } from "../controllers/adminUser.controller.js";
+import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import upload from "../middlewares/multer.middleware.js";
 
 const router = express.Router();
@@ -44,7 +46,12 @@ router.post("/logout", verifyJWT, logout);
 
 router.post("/refresh-token", refreshAccessToken);
 
+router.get("/public-stats", getPublicStats);
+
 router.get("/me", verifyJWT, getCurrentUser);
+
+router.get("/admin/users", verifyJWT, authorizeRoles("admin"), getAllUsersAnalyzed);
+router.get("/admin/users/:id", verifyJWT, authorizeRoles("admin"), getUserAnalyzedById);
 
 router.patch(
   "/profile",

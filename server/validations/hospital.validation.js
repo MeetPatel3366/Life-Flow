@@ -45,7 +45,7 @@ const hospitalRegistrationSchema = z.object({
           coords[1] <= 90,
         "Invalid longitude or latitude",
       ),
-  }),
+  }).optional(),
   storageCapacity: z.coerce
     .number()
     .min(0, "Storage capacity cannot be negative")

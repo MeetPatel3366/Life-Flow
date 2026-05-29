@@ -1,15 +1,24 @@
 import app from "./app.js";
 import connectDB from "./config/db.js";
+import http from "http";
+import { initSocket } from "./utils/socket.js";
+import { initCronJobs } from "./utils/cron.js";
 
 const PORT = process.env.PORT || 4000;
 
+const server = http.createServer(app);
+
+initSocket(server);
+
+initCronJobs();
+
 connectDB()
   .then(() => {
-    app.on("error", (error) => {
+    server.on("error", (error) => {
       console.log("Server Error : ", error);
       throw error;
     });
-    app.listen(PORT, async () => {
+    server.listen(PORT, async () => {
       console.log(`Server running at PORT : ${PORT}`);
     });
   })

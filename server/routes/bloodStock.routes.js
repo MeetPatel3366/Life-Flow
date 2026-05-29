@@ -53,7 +53,7 @@ router.get(
 router.get(
   "/stats",
   verifyJWT,
-  authorizeRoles("admin"),
+  authorizeRoles("admin", "hospital"),
   validate(getBloodStockStatsSchema),
   getBloodStockStats,
 );

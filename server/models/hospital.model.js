@@ -110,7 +110,6 @@ const hospitalSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-//For geo queries (find nearest center)
 hospitalSchema.index({ location: "2dsphere" });
 
 export default mongoose.model("Hospital", hospitalSchema);

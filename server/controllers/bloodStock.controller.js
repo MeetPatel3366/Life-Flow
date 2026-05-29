@@ -5,14 +5,17 @@ import Hospital from "../models/hospital.model.js";
 import BloodStock from "../models/bloodStock.model.js";
 import Donation from "../models/donation.model.js";
 import mongoose from "mongoose";
+import { notifyHospital, notifyAdmin } from "../utils/notification.service.js";
 
 export const createBloodStock = asyncHandler(async (req, res) => {
-  const { donationId, componentType, quantity, expiryDate, notes } = req.body;
+  if (req.user.role !== "admin") {
+    throw new ApiError(403, "Only Admins can perform manual stock entries");
+  }
 
-  const hospitalId = req.user.hospitalId;
+  const { donationId, componentType, quantity, expiryDate, notes, hospitalId } = req.body;
 
   if (!hospitalId) {
-    throw new ApiError(403, "Hospital account not linked properly");
+    throw new ApiError(400, "hospitalId is required for manual entry");
   }
 
   const [hospital, donation, existingStock] = await Promise.all([
@@ -118,6 +121,23 @@ export const createBloodStock = asyncHandler(async (req, res) => {
     },
   });
 
+  notifyHospital(
+    hospitalId,
+    "stock_available",
+    "New Blood Stock Available",
+    `New ${donation.bloodGroup} ${componentType} stock is now available.`,
+    "BloodStock",
+    bloodStock._id
+  );
+
+  notifyAdmin(
+    "stock_available",
+    "New Blood Stock Available",
+    `Hospital ${hospital.name} has new ${donation.bloodGroup} ${componentType} stock available.`,
+    "BloodStock",
+    bloodStock._id
+  );
+
   return res
     .status(201)
     .json(new ApiResponse(201, "Blood stock created successfully", bloodStock));
@@ -129,13 +149,15 @@ export const getBloodStock = asyncHandler(async (req, res) => {
     componentType,
     status,
     hospitalId,
-    page = 1,
-    limit = 10,
+    page,
+    limit,
     sortBy,
     sortOrder,
   } = req.query;
 
-  const skip = (page - 1) * limit;
+  const pageNum = parseInt(page) || 1;
+  const limitNum = parseInt(limit) || 10;
+  const skip = (pageNum - 1) * limitNum;
 
   const filter = {};
 
@@ -155,20 +177,23 @@ export const getBloodStock = asyncHandler(async (req, res) => {
     filter.componentType = componentType;
   }
 
-  if (status) {
-    filter.status = status;
+  if (status === "Expired") {
+    filter.status = "Expired";
+  } else {
+    filter.status = status ? status : { $ne: "Expired" };
+    filter.expiryDate = { $gt: new Date() };
   }
 
   const expiredCount = await BloodStock.countDocuments({
     expiryDate: { $lt: new Date() },
-    status: "Active",
+    status: "Available",
   });
 
   if (expiredCount > 0) {
     await BloodStock.updateMany(
       {
         expiryDate: { $lt: new Date() },
-        status: "Active",
+        status: "Available",
       },
       {
         $set: {
@@ -184,7 +209,7 @@ export const getBloodStock = asyncHandler(async (req, res) => {
 
   const [bloodStocks, totalCount] = await Promise.all([
     BloodStock.find(filter)
-      .populate("hospital", "name type address phone")
+      .populate("hospital", "name type address phone hasComponentSeparation")
       .populate({
         path: "donation",
         select: "donor donationDate bloodGroup",
@@ -197,7 +222,7 @@ export const getBloodStock = asyncHandler(async (req, res) => {
       .select("-__v")
       .sort(sort)
       .skip(skip)
-      .limit(limit)
+      .limit(limitNum)
       .lean(),
 
     BloodStock.countDocuments(filter),
@@ -211,10 +236,10 @@ export const getBloodStock = asyncHandler(async (req, res) => {
       pagination: {
         totalCount,
         totalPages,
-        currentPage: page,
-        limit,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
+        currentPage: pageNum,
+        limit: limitNum,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
       },
     }),
   );
@@ -295,8 +320,11 @@ export const getHospitalBloodStock = asyncHandler(async (req, res) => {
     filter.componentType = componentType;
   }
 
-  if (status) {
-    filter.status = status;
+  if (status === "Expired") {
+    filter.status = "Expired";
+  } else {
+    filter.status = status ? status : { $ne: "Expired" };
+    filter.expiryDate = { $gt: new Date() };
   }
 
   const skip = (page - 1) * limit;
@@ -370,7 +398,25 @@ export const updateBloodStockStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Stock already in requested status");
   }
 
-  if (new Date(bloodStock.expiryDate) < new Date() && status !== "Expired") {
+  const validTransitions = {
+    "Testing": ["Available", "Discarded"],
+    "Available": ["Reserved", "Expired", "Discarded"],
+    "Reserved": ["In Transit", "Issued", "Available"],
+    "In Transit": ["Available", "Issued", "Discarded"],
+    "Issued": [],
+    "Expired": ["Discarded"],
+    "Discarded": [],
+    "Processed": []
+  };
+
+  if (!validTransitions[bloodStock.status]?.includes(status)) {
+    throw new ApiError(
+      400,
+      `Invalid status transition from ${bloodStock.status} to ${status}`
+    );
+  }
+
+  if (new Date(bloodStock.expiryDate) < new Date() && status !== "Expired" && status !== "Discarded") {
     throw new ApiError(400, "Stock is already expired");
   }
 
@@ -379,15 +425,33 @@ export const updateBloodStockStatus = asyncHandler(async (req, res) => {
     {
       status,
       ...(notes && { notes }),
-      updatedAt: new Date(),
     },
     {
       new: true,
     },
-  ).lean();
+  ).populate("hospital", "name");
 
   if (!updateBloodStock) {
     throw new ApiError(500, "Failed to update blood stock");
+  }
+
+  if (status === "Available") {
+    notifyHospital(
+      updateBloodStock.hospital._id,
+      "stock_available",
+      "Blood Stock Available",
+      `Blood stock (${updateBloodStock.bloodGroup} ${updateBloodStock.componentType}) is now available in your inventory.`,
+      "BloodStock",
+      updateBloodStock._id
+    );
+
+    notifyAdmin(
+      "stock_available",
+      "Blood Stock Available",
+      `Hospital ${updateBloodStock.hospital.name} has new ${updateBloodStock.bloodGroup} ${updateBloodStock.componentType} stock available.`,
+      "BloodStock",
+      updateBloodStock._id
+    );
   }
 
   return res
@@ -491,14 +555,41 @@ export const separateComponents = asyncHandler(async (req, res) => {
     };
   });
 
-  const createdUnits = await BloodStock.insertMany(componentsToCreate);
+  try {
+    const createdUnits = await BloodStock.insertMany(componentsToCreate);
 
-  return res.status(201).json(
-    new ApiResponse(201, "Components separated successfully", {
-      parent: updatedParentUnit._id,
-      components: createdUnits,
-    }),
-  );
+    notifyHospital(
+      parentUnit.hospital,
+      "stock_available",
+      "Blood Components Created",
+      `Successfully separated ${parentUnit.bloodGroup} Whole Blood into ${createdUnits.length} components.`,
+      "BloodStock",
+      parentUnit._id
+    );
+
+    notifyAdmin(
+      "stock_available",
+      "New Blood Components Available",
+      `Hospital ${hospital?.name || "Unknown"} has created ${createdUnits.length} new blood components through separation.`,
+      "BloodStock",
+      parentUnit._id
+    );
+
+    return res.status(201).json(
+      new ApiResponse(201, "Components separated successfully", {
+        parent: updatedParentUnit._id,
+        components: createdUnits,
+      }),
+    );
+  } catch (error) {
+    await BloodStock.findByIdAndUpdate(id, {
+      $set: {
+        status: "Available",
+        isComponentSeparated: false,
+      },
+    });
+    throw new ApiError(500, "Component separation failed. Changes reverted.");
+  }
 });
 
 export const getAvailableBloodStock = asyncHandler(async (req, res) => {
@@ -506,15 +597,17 @@ export const getAvailableBloodStock = asyncHandler(async (req, res) => {
     bloodGroup,
     componentType,
     hospital,
-    page = 1,
-    limit = 10,
+    page,
+    limit,
     sortBy,
     sortOrder,
   } = req.query;
 
   const user = req.user;
 
-  const skip = (page - 1) * limit;
+  const pageNum = parseInt(page) || 1;
+  const limitNum = parseInt(limit) || 10;
+  const skip = (pageNum - 1) * limitNum;
   const now = new Date();
 
   const filter = {
@@ -544,10 +637,10 @@ export const getAvailableBloodStock = asyncHandler(async (req, res) => {
 
   const [bloodStocks, totalCount] = await Promise.all([
     BloodStock.find(filter)
-      .populate("hospital", "name phone address location")
+      .populate("hospital", "name phone address location hasComponentSeparation")
       .select("-__v -updatedAt")
       .sort(sort)
-      .limit(limit)
+      .limit(limitNum)
       .skip(skip)
       .lean(),
 
@@ -562,10 +655,10 @@ export const getAvailableBloodStock = asyncHandler(async (req, res) => {
       pagination: {
         totalCount,
         totalPages,
-        currentPage: page,
-        limit,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
+        currentPage: pageNum,
+        limit: limitNum,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
       },
     }),
   );
@@ -580,7 +673,9 @@ export const getBloodStockStats = asyncHandler(async (req, res) => {
 
   const matchStage = {};
 
-  if (hospital) {
+  if (req.user.role === "hospital") {
+    matchStage.hospital = new mongoose.Types.ObjectId(req.user.hospitalId);
+  } else if (hospital) {
     matchStage.hospital = new mongoose.Types.ObjectId(hospital);
   }
 
@@ -593,7 +688,9 @@ export const getBloodStockStats = asyncHandler(async (req, res) => {
             $group: {
               _id: null,
               totalUnits: {
-                $sum: 1,
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Available"] }, 1, 0],
+                },
               },
               availableUnits: {
                 $sum: {
@@ -623,7 +720,11 @@ export const getBloodStockStats = asyncHandler(async (req, res) => {
           {
             $group: {
               _id: "$bloodGroup",
-              total: { $sum: 1 },
+              total: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Available"] }, 1, 0],
+                },
+              },
               available: {
                 $sum: {
                   $cond: [{ $eq: ["$status", "Available"] }, 1, 0],
@@ -638,6 +739,24 @@ export const getBloodStockStats = asyncHandler(async (req, res) => {
           {
             $group: {
               _id: "$componentType",
+              total: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Available"] }, 1, 0],
+                },
+              },
+              available: {
+                $sum: {
+                  $cond: [{ $eq: ["$status", "Available"] }, 1, 0],
+                },
+              },
+            },
+          },
+        ],
+        
+        byHospital: [
+          {
+            $group: {
+              _id: "$hospital",
               total: { $sum: 1 },
               available: {
                 $sum: {
@@ -646,6 +765,23 @@ export const getBloodStockStats = asyncHandler(async (req, res) => {
               },
             },
           },
+          {
+            $lookup: {
+              from: "hospitals",
+              localField: "_id",
+              foreignField: "_id",
+              as: "hospitalInfo"
+            }
+          },
+          { $unwind: "$hospitalInfo" },
+          {
+            $project: {
+              name: "$hospitalInfo.name",
+              total: 1,
+              available: 1
+            }
+          },
+          { $sort: { available: -1 } }
         ],
 
         expiringSoon: [

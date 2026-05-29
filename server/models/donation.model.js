@@ -109,7 +109,6 @@ const donationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// only 1 active donation per donor
 donationSchema.index(
   {
     donor: 1,
@@ -120,7 +119,6 @@ donationSchema.index(
   },
 );
 
-// no double booking same donor + hospital + date
 donationSchema.index(
   {
     donor: 1,
@@ -129,11 +127,8 @@ donationSchema.index(
   },
   { unique: true },
 );
-
-// compound index on donor + status in ascending order & createdAt in descending
 donationSchema.index({ donor: 1, status: 1, createdAt: -1 });
 
-// compound index on hospital + status fields in ascending order & scheduledDate in descending
 donationSchema.index({ hospital: 1, status: 1, scheduledDate: -1 });
 
 donationSchema.index({ status: 1 });

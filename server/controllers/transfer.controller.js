@@ -4,6 +4,8 @@ import { ApiError } from "../utils/ApiError.js";
 import Transfer from "../models/transfer.model.js";
 import BloodStock from "../models/bloodStock.model.js";
 import Request from "../models/request.model.js";
+import { notifyHospital, notifyAdmin } from "../utils/notification.service.js";
+import mongoose from "mongoose";
 
 export const createTransfer = asyncHandler(async (req, res) => {
   const { request: requestId, notes } = req.body;
@@ -91,14 +93,15 @@ export const getTransfers = asyncHandler(async (req, res) => {
 
   const [transfers, total] = await Promise.all([
     await Transfer.find(query)
-      .sort({ [sortBy]: sortOrder === "asc" ? 1 : -1 })
+      .sort({ priority: 1, [sortBy]: sortOrder === "asc" ? 1 : -1 })
       .skip(skip)
       .limit(limit)
       .select(
-        "fromHospital toHospital status dispatchDate deliveryDate createdAt",
+        "fromHospital toHospital status dispatchDate deliveryDate createdAt request priority",
       )
-      .populate("fromHospital", "name")
-      .populate("toHospital", "name")
+      .populate("fromHospital", "name phone")
+      .populate("toHospital", "name phone")
+      .populate("request", "bloodGroup componentType unitsRequired")
       .lean(),
 
     Transfer.countDocuments(query),
@@ -117,26 +120,31 @@ export const getTransfers = asyncHandler(async (req, res) => {
 
 export const getTransferById = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const hospitalId = req.user.hospitalId;
-
-  if (!hospitalId) {
+  if (!req.user.hospitalId && req.user.role !== "admin") {
     throw new ApiError(400, "Hospital not linked to user");
   }
 
+  const hospitalId = req.user.hospitalId;
+
   const transfer = await Transfer.findById(id)
-    .populate(
-      "fromHospital toHospital request bloodUnits approvedBy",
-      "name bloodGroup componentType unitsRequired status name",
-    )
+    .populate("fromHospital", "name phone")
+    .populate("toHospital", "name phone")
+    .populate("request", "bloodGroup componentType unitsRequired status diagnosis urgency")
+    .populate("approvedBy", "name")
+    .select("+priority")
     .lean();
 
   if (!transfer) {
     throw new ApiError(404, "Transfer not found");
   }
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, "Transfer fetched successfully", transfer));
+  return res.status(200).json(
+    new ApiResponse(200, "Transfer fetched successfully", {
+      ...transfer,
+      isSourceHospital: String(transfer.fromHospital?._id || transfer.fromHospital) === String(hospitalId),
+      isDestinationHospital: String(transfer.toHospital?._id || transfer.toHospital) === String(hospitalId),
+    }),
+  );
 });
 
 export const approveTransfer = asyncHandler(async (req, res) => {
@@ -172,7 +180,7 @@ export const approveTransfer = asyncHandler(async (req, res) => {
   const stocks = await BloodStock.find({
     _id: { $in: transfer.bloodUnits },
     hospital: transfer.fromHospital,
-    status: "Available",
+    status: "Reserved",
     expiryDate: { $gt: now },
   })
     .select("_id")
@@ -245,7 +253,7 @@ export const dispatchTransfer = asyncHandler(async (req, res) => {
     {
       _id: { $in: transfer.bloodUnits },
       hospital: transfer.fromHospital,
-      status: "Available",
+      status: "Reserved",
       expiryDate: { $gt: now },
     },
     {
@@ -282,6 +290,23 @@ export const dispatchTransfer = asyncHandler(async (req, res) => {
   if (!updatedTransfer) {
     throw new ApiError(400, "Transfer dispatch failed");
   }
+
+  notifyHospital(
+    transfer.toHospital,
+    "transfer_dispatched",
+    "Blood Transfer Dispatched",
+    `The blood transfer from ${transfer.fromHospital?.name || "another hospital"} has been dispatched. Track ID: ${trackingNumber || 'N/A'}`,
+    "Transfer",
+    transfer._id
+  ).catch(() => {});
+
+  notifyAdmin(
+    "transfer_dispatched",
+    "Blood Transfer Dispatched",
+    `A blood transfer from ${transfer.fromHospital?.name || "hospital"} to ${transfer.toHospital?.name || "hospital"} has been dispatched.`,
+    "Transfer",
+    transfer._id
+  ).catch(() => {});
 
   return res
     .status(200)
@@ -358,6 +383,7 @@ export const completeTransfer = asyncHandler(async (req, res) => {
 
   const transfer = await Transfer.findById(id)
     .select("fromHospital toHospital bloodUnits status request")
+    .populate("fromHospital toHospital", "name")
     .lean();
 
   if (!transfer) {
@@ -379,7 +405,8 @@ export const completeTransfer = asyncHandler(async (req, res) => {
     {
       $set: {
         hospital: hospitalId,
-        status: "Available",
+        status: transfer.request ? "Reserved" : "Available",
+        request: transfer.request || null,
         transfer: transfer._id,
       },
     },
@@ -414,6 +441,32 @@ export const completeTransfer = asyncHandler(async (req, res) => {
       },
     });
   }
+
+  notifyHospital(
+    transfer.fromHospital,
+    "transfer_completed",
+    "Blood Transfer Completed",
+    `The blood transfer to ${transfer.toHospital?.name || "another hospital"} has been completed.`,
+    "Transfer",
+    transfer._id
+  ).catch(() => {});
+
+  notifyHospital(
+    transfer.toHospital,
+    "transfer_completed",
+    "Blood Transfer Completed",
+    `The blood transfer from ${transfer.fromHospital?.name || "another hospital"} has been completed. Stock is now ready for issue.`,
+    "Transfer",
+    transfer._id
+  ).catch(() => {});
+
+  notifyAdmin(
+    "transfer_completed",
+    "Blood Transfer Completed",
+    `A blood transfer between ${transfer.fromHospital?.name || "hospital"} and ${transfer.toHospital?.name || "hospital"} has been completed.`,
+    "Transfer",
+    transfer._id
+  ).catch(() => {});
 
   return res
     .status(200)
@@ -518,16 +571,18 @@ export const getAllTransfers = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const sort = {
+    priority: 1, 
     [sortBy]: sortOrder === "asc" ? 1 : -1,
   };
 
   const [transfers, total] = await Promise.all([
     Transfer.find(filter)
       .select(
-        "fromHospital toHospital status transportMode trackingNumber dispatchDate deliveryDate createdAt",
+        "fromHospital toHospital status transportMode trackingNumber dispatchDate deliveryDate createdAt priority request",
       )
       .populate("fromHospital", "name")
       .populate("toHospital", "name")
+      .populate("request", "bloodGroup componentType")
       .sort(sort)
       .skip(skip)
       .limit(limit)
@@ -553,6 +608,13 @@ export const getTransferStats = asyncHandler(async (req, res) => {
   const { fromDate, toDate } = req.query;
 
   const matchStage = {};
+
+  if (req.user.role === "hospital") {
+    matchStage.$or = [
+      { fromHospital: new mongoose.Types.ObjectId(req.user.hospitalId) },
+      { toHospital: new mongoose.Types.ObjectId(req.user.hospitalId) }
+    ];
+  }
 
   if (fromDate || toDate) {
     matchStage.createdAt = {};
@@ -621,6 +683,26 @@ export const getTransferStats = asyncHandler(async (req, res) => {
           },
           { $count: "count" },
         ],
+
+        pendingIncoming: [
+          {
+            $match: {
+              toHospital: new mongoose.Types.ObjectId(req.user.hospitalId),
+              status: "Pending Approval"
+            }
+          },
+          { $count: "count" }
+        ],
+
+        pendingOutgoing: [
+          {
+            $match: {
+              fromHospital: new mongoose.Types.ObjectId(req.user.hospitalId),
+              status: "Pending Approval"
+            }
+          },
+          { $count: "count" }
+        ],
       },
     },
   ]);
@@ -634,6 +716,8 @@ export const getTransferStats = asyncHandler(async (req, res) => {
       todayTransfers: result.todayTransfers[0]?.count || 0,
       avgDeliveryTime: result.avgDeliveryTime[0]?.avgTime || 0,
       delayedTransfers: result.delayedTransfers[0]?.count || 0,
+      pendingIncoming: result.pendingIncoming[0]?.count || 0,
+      pendingOutgoing: result.pendingOutgoing[0]?.count || 0,
     }),
   );
 });

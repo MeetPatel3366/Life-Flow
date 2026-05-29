@@ -205,17 +205,16 @@ export const rejectHospital = asyncHandler(async (req, res) => {
 });
 
 export const getHospitals = asyncHandler(async (req, res) => {
-  if (req.user.role !== "admin") {
-    throw new ApiError(403, "Only admin can access hospital list");
-  }
-
   const { page, limit, status, search, sortBy, order } = req.query;
 
   const skip = (page - 1) * limit;
 
   const filter = {};
 
-  if (status) {
+  if (req.user.role !== "admin") {
+    filter.verificationStatus = "Approved";
+    filter.isActive = true;
+  } else if (status) {
     filter.verificationStatus = status;
   }
 
@@ -259,10 +258,6 @@ export const getHospitals = asyncHandler(async (req, res) => {
 });
 
 export const getHospitalById = asyncHandler(async (req, res) => {
-  if (req.user.role !== "admin") {
-    throw new ApiError(403, "Only admin can access hospital details");
-  }
-
   const { id } = req.params;
 
   const hospital = await Hospital.findById(id)
@@ -273,6 +268,10 @@ export const getHospitalById = asyncHandler(async (req, res) => {
 
   if (!hospital) {
     throw new ApiError(404, "Hospital not found");
+  }
+
+  if (req.user.role !== "admin" && hospital.verificationStatus !== "Approved") {
+    throw new ApiError(403, "You do not have permission to view this hospital profile");
   }
 
   const processedHospital = {
@@ -296,7 +295,15 @@ export const getMyHospitalProfile = asyncHandler(async (req, res) => {
   const hospitalId = req.user.hospitalId;
 
   if (!hospitalId) {
-    throw new ApiError(400, "Hospital profile not linked to user");
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          "No hospital profile linked yet",
+          null,
+        ),
+      );
   }
 
   const hospital = await Hospital.findById(hospitalId)
@@ -404,51 +411,80 @@ export const updateMyHospitalProfile = asyncHandler(async (req, res) => {
 
 export const getNearbyHospitals = asyncHandler(async (req, res) => {
   const { lat, lng, radius = 10, page = 1, limit = 10 } = req.query;
+  const skip = (Number(page) - 1) * Number(limit);
 
-  const skip = (page - 1) * limit;
-  const radiusInMeters = radius * 1000;
+  let result;
 
-  const result = await Hospital.aggregate([
-    {
-      $geoNear: {
-        near: {
-          type: "Point",
-          coordinates: [Number(lng), Number(lat)],
+  if (lat !== undefined && lng !== undefined && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+    const radiusInMeters = Number(radius) * 1000;
+    result = await Hospital.aggregate([
+      {
+        $geoNear: {
+          near: {
+            type: "Point",
+            coordinates: [Number(lng), Number(lat)],
+          },
+          distanceField: "distance",
+          maxDistance: radiusInMeters,
+          spherical: true,
+          query: {
+            verificationStatus: "Approved",
+            isActive: true,
+          },
         },
-        distanceField: "distance",
-        maxDistance: radiusInMeters,
-        spherical: true,
-        query: {
+      },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $skip: skip },
+            { $limit: Number(limit) },
+            {
+              $project: {
+                name: 1,
+                type: 1,
+                phone: 1,
+                address: 1,
+                location: 1,
+                distance: { $round: ["$distance", 0] },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+  } else {
+    result = await Hospital.aggregate([
+      {
+        $match: {
           verificationStatus: "Approved",
           isActive: true,
         },
       },
-    },
-    {
-      $facet: {
-        metadata: [{ $count: "total" }],
-
-        data: [
-          { $skip: skip },
-          { $limit: limit },
-          {
-            $project: {
-              name: 1,
-              type: 1,
-              phone: 1,
-              address: 1,
-              location: 1,
-              distance: { $round: ["$distance", 0] },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $skip: skip },
+            { $limit: Number(limit) },
+            {
+              $project: {
+                name: 1,
+                type: 1,
+                phone: 1,
+                address: 1,
+                location: 1,
+              },
             },
-          },
-        ],
+          ],
+        },
       },
-    },
-  ]);
+    ]);
+  }
 
   const hospitals = result[0].data;
   const totalCount = result[0].metadata[0]?.total || 0;
-  const totalPages = Math.ceil(totalCount / limit);
+  const totalPages = Math.ceil(totalCount / Number(limit));
 
   return res.status(200).json(
     new ApiResponse(
@@ -459,10 +495,10 @@ export const getNearbyHospitals = asyncHandler(async (req, res) => {
         pagination: {
           totalResults: totalCount,
           totalPages,
-          currentPage: page,
-          limit,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1,
+          currentPage: Number(page),
+          limit: Number(limit),
+          hasNextPage: Number(page) < totalPages,
+          hasPrevPage: Number(page) > 1,
         },
       },
     ),

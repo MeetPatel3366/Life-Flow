@@ -8,6 +8,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import jwt from "jsonwebtoken";
 import handleFileUpload from "../utils/handleFileUpload.js";
 import { OAuth2Client } from "google-auth-library";
+import mongoose from "mongoose";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -716,4 +717,22 @@ export const googleLogin = asyncHandler(async (req, res) => {
         isNewUser: !existingOauth,
       }),
     );
+});
+
+export const getPublicStats = asyncHandler(async (req, res) => {
+  const [donorCount, hospitalCount, livesSaved] = await Promise.all([
+    User.countDocuments({ role: "donor", isVerified: true, isActive: true }),
+    mongoose
+      .model("Hospital")
+      .countDocuments({ verificationStatus: "Approved", isActive: true }),
+    mongoose.model("Request").countDocuments({ status: "Completed" }),
+  ]);
+
+  return res.status(200).json(
+    new ApiResponse(200, "Public stats fetched successfully", {
+      donors: donorCount,
+      hospitals: hospitalCount,
+      livesSaved: livesSaved,
+    }),
+  );
 });

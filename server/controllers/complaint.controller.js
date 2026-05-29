@@ -3,6 +3,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import Complaint from "../models/complaint.model.js";
 import handleFileUpload from "../utils/handleFileUpload.js";
+import { notifyUser } from "../utils/notification.service.js";
 
 export const createComplaint = asyncHandler(async (req, res) => {
   const { category, subject, description, hospital } = req.body;
@@ -279,6 +280,15 @@ export const resolveComplaint = asyncHandler(async (req, res) => {
   )
     .populate("raisedBy", "name email")
     .lean();
+
+  notifyUser(
+    updatedComplaint.raisedBy._id,
+    "complaint_resolved",
+    "Complaint Resolved",
+    `Your complaint has been resolved. Resolution note: ${resolutionNote || 'Resolving note not provided.'}`,
+    "Complaint",
+    updatedComplaint._id
+  );
 
   return res
     .status(200)

@@ -33,6 +33,7 @@ const bloodStockSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
+        "Testing", // waiting for lab tests
         "Available", // ready in stock
         "Reserved", // assigned to a patient request
         "In Transit", // being transferred
@@ -41,7 +42,7 @@ const bloodStockSchema = new mongoose.Schema(
         "Discarded", // failed screening/damaged
         "Processed", // whole blood already separated
       ],
-      default: "Available",
+      default: "Testing",
     },
     request: {
       type: mongoose.Schema.Types.ObjectId,
